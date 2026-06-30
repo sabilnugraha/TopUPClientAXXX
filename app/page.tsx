@@ -492,8 +492,9 @@ export default function HomePage() {
   const deleteKaryawan = async (row: RunRow) => {
     try {
       const res = await fetch(`/api/karyawan/${row.EmployeeNo}?companyCode=${row.CompanyCode}`, { method: 'DELETE' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setDeleteTarget(null);
       loadKaryawan();
     } catch (e) {
