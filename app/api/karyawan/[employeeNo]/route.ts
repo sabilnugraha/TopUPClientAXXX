@@ -41,16 +41,18 @@ export async function PUT(
 }
 
 // DELETE /api/karyawan/:employeeNo?companyCode=
+// Cascade: hapus PeMasterLeave + HistoryTopUpLeaves dulu, baru PeMaster
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { employeeNo: string } }
 ) {
   const companyCode = new URL(req.url).searchParams.get('companyCode') ?? 'APLL';
+  const { employeeNo } = params;
   try {
-    await query(
-      `DELETE FROM "PeMaster" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`,
-      [companyCode, params.employeeNo]
-    );
+    await query(`DELETE FROM "HistoryTopUpLeaves" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
+    await query(`DELETE FROM "LeaveTopUpRunDetail"  WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
+    await query(`DELETE FROM "PeMasterLeave"         WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
+    await query(`DELETE FROM "PeMaster"              WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

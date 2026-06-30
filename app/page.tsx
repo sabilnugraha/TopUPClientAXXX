@@ -9,7 +9,7 @@ type RunRow     = Record<string, DbValue>;
 type HistRow    = Record<string, DbValue>;
 type DetailRow  = Record<string, DbValue>;
 
-type Tab = 'run' | 'karyawan' | 'logs' | 'history';
+type Tab = 'run' | 'karyawan' | 'logs' | 'history' | 'test';
 
 interface KaryawanForm {
   CompanyCode: string;
@@ -31,6 +31,7 @@ const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'karyawan', icon: '👥', label: 'Karyawan'    },
   { id: 'logs',     icon: '📋', label: 'Run Logs'    },
   { id: 'history',  icon: '📊', label: 'History'     },
+  { id: 'test',     icon: '🧪', label: 'Test'        },
 ];
 
 const LEAVE_CODES = [
@@ -149,6 +150,250 @@ function Stat({ label, value, gradient }: { label: string; value: DbValue; gradi
     <div className={`rounded-2xl p-4 text-white ${gradient}`}>
       <div className="text-3xl font-black">{String(value ?? '-')}</div>
       <div className="text-xs mt-1 opacity-80 font-medium">{label}</div>
+    </div>
+  );
+}
+
+// ── Test Tab ──────────────────────────────────────────────────────────────────
+interface ScenarioDef {
+  id: string; category: string; emoji: string; name: string; description: string; runDate: string;
+}
+interface ScenarioResult {
+  id: string; status: 'pass' | 'fail'; message: string;
+  before: Record<string, unknown> | null;
+  after:  Record<string, unknown> | null;
+}
+type TestStatus = 'idle' | 'running' | 'pass' | 'fail';
+
+const CAT_COLOR: Record<string, string> = {
+  AL:   'bg-indigo-100 text-indigo-700',
+  PH:   'bg-violet-100 text-violet-700',
+  HAID: 'bg-pink-100 text-pink-700',
+  JAN:  'bg-emerald-100 text-emerald-700',
+};
+
+function TestTab() {
+  const [scenarios,    setScenarios]    = useState<ScenarioDef[]>([]);
+  const [statuses,     setStatuses]     = useState<Record<string, TestStatus>>({});
+  const [results,      setResults]      = useState<Record<string, ScenarioResult>>({});
+  const [expanded,     setExpanded]     = useState<string | null>(null);
+  const [setupMsg,     setSetupMsg]     = useState('');
+  const [cleanupMsg,   setCleanupMsg]   = useState('');
+  const [runningAll,   setRunningAll]   = useState(false);
+  const [setupLoading, setSetupLoading] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/test/run').then((r) => r.json()).then((data) => {
+      if (Array.isArray(data)) setScenarios(data);
+    });
+  }, []);
+
+  const handleSetup = async () => {
+    setSetupLoading(true); setSetupMsg('');
+    try {
+      const res  = await fetch('/api/test/setup', { method: 'POST' });
+      const data = await res.json();
+      setSetupMsg(data.message ?? (data.error ? `Error: ${data.error}` : 'Done'));
+    } finally { setSetupLoading(false); }
+  };
+
+  const handleCleanup = async () => {
+    const ok = confirm('Hapus semua data karyawan test (TEST-0x)?');
+    if (!ok) return;
+    const res  = await fetch('/api/test/cleanup', { method: 'DELETE' });
+    const data = await res.json();
+    setCleanupMsg(data.message ?? (data.error ? `Error: ${data.error}` : 'Done'));
+  };
+
+  const runOne = async (id: string) => {
+    setStatuses((s) => ({ ...s, [id]: 'running' }));
+    try {
+      const res  = await fetch('/api/test/run', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scenarioId: id }),
+      });
+      const data = await res.json();
+      if (data.results?.[0]) {
+        const r = data.results[0] as ScenarioResult;
+        setResults((prev) => ({ ...prev, [id]: r }));
+        setStatuses((s) => ({ ...s, [id]: r.status }));
+      }
+    } catch { setStatuses((s) => ({ ...s, [id]: 'fail' })); }
+  };
+
+  const runAll = async () => {
+    setRunningAll(true);
+    const init: Record<string, TestStatus> = {};
+    scenarios.forEach((s) => { init[s.id] = 'running'; });
+    setStatuses(init);
+    try {
+      const res  = await fetch('/api/test/run', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (data.results) {
+        const newStatus: Record<string, TestStatus> = {};
+        const newResults: Record<string, ScenarioResult> = {};
+        (data.results as ScenarioResult[]).forEach((r) => {
+          newStatus[r.id]  = r.status;
+          newResults[r.id] = r;
+        });
+        setStatuses(newStatus);
+        setResults(newResults);
+      }
+    } finally { setRunningAll(false); }
+  };
+
+  const passed = Object.values(statuses).filter((s) => s === 'pass').length;
+  const failed = Object.values(statuses).filter((s) => s === 'fail').length;
+  const total  = scenarios.length;
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">Test Scenarios 🧪</h1>
+          <p className="text-sm text-gray-400 mt-1">{total} skenario · otomatis setup, run, dan validasi</p>
+        </div>
+        <div className="flex gap-2 flex-wrap">
+          <Btn variant="ghost" size="sm" onClick={handleSetup} disabled={setupLoading}>
+            {setupLoading ? '⏳' : '🗄️'} Setup Dummy Data
+          </Btn>
+          <Btn variant="success" onClick={runAll} disabled={runningAll || !scenarios.length}>
+            {runningAll ? '⏳ Running…' : '▶ Run All Tests'}
+          </Btn>
+          <Btn variant="danger" size="sm" onClick={handleCleanup}>🗑 Cleanup</Btn>
+        </div>
+      </div>
+
+      {/* Messages */}
+      {setupMsg && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+          <span>✅</span> {setupMsg}
+        </div>
+      )}
+      {cleanupMsg && (
+        <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2">
+          <span>🗑</span> {cleanupMsg}
+        </div>
+      )}
+
+      {/* Summary bar */}
+      {(passed + failed) > 0 && (
+        <Card className="p-4">
+          <div className="flex items-center gap-4">
+            <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all"
+                style={{ width: `${total ? (passed / total) * 100 : 0}%` }}
+              />
+            </div>
+            <div className="flex gap-4 text-sm font-semibold">
+              <span className="text-emerald-600">✓ {passed} passed</span>
+              {failed > 0 && <span className="text-red-500">✗ {failed} failed</span>}
+              <span className="text-gray-400">{total - passed - failed} pending</span>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Scenario list */}
+      <div className="space-y-2">
+        {scenarios.map((sc) => {
+          const status  = statuses[sc.id] ?? 'idle';
+          const result  = results[sc.id];
+          const isOpen  = expanded === sc.id;
+
+          const statusIcon: Record<TestStatus, string> = {
+            idle: '○', running: '⏳', pass: '✅', fail: '❌',
+          };
+          const statusBg: Record<TestStatus, string> = {
+            idle: 'border-gray-100 bg-white',
+            running: 'border-indigo-200 bg-indigo-50',
+            pass: 'border-emerald-200 bg-emerald-50',
+            fail: 'border-red-200 bg-red-50',
+          };
+
+          return (
+            <div key={sc.id} className={`rounded-2xl border transition ${statusBg[status]}`}>
+              <div className="flex items-center gap-3 p-4">
+                <span className="text-lg w-6 text-center">{statusIcon[status]}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_COLOR[sc.category] ?? 'bg-gray-100 text-gray-600'}`}>
+                      {sc.category}
+                    </span>
+                    <span className="font-semibold text-sm text-gray-800">{sc.emoji} {sc.name}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-0.5 truncate">{sc.description}</p>
+                  {result && (
+                    <p className={`text-xs mt-1 font-medium ${result.status === 'pass' ? 'text-emerald-600' : 'text-red-600'}`}>
+                      {result.message}
+                    </p>
+                  )}
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {result && (
+                    <button
+                      onClick={() => setExpanded(isOpen ? null : sc.id)}
+                      className="text-xs text-indigo-500 hover:underline px-2"
+                    >
+                      {isOpen ? 'Tutup' : 'Before/After'}
+                    </button>
+                  )}
+                  <Btn
+                    variant="ghost" size="sm"
+                    onClick={() => runOne(sc.id)}
+                    disabled={status === 'running' || runningAll}
+                  >
+                    {status === 'running' ? '⏳' : '▶'}
+                  </Btn>
+                </div>
+              </div>
+
+              {/* Before / After expand */}
+              {isOpen && result && (
+                <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Before</div>
+                      <div className="bg-gray-50 rounded-xl p-3 font-mono text-xs space-y-1">
+                        {result.before
+                          ? Object.entries(result.before).map(([k, v]) => (
+                              <div key={k} className="flex justify-between gap-2">
+                                <span className="text-gray-400">{k}</span>
+                                <span className="text-gray-700 font-semibold">{String(v ?? '-')}</span>
+                              </div>
+                            ))
+                          : <span className="text-gray-300">—</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">After</div>
+                      <div className={`rounded-xl p-3 font-mono text-xs space-y-1 ${result.status === 'pass' ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                        {result.after
+                          ? Object.entries(result.after).map(([k, v]) => (
+                              <div key={k} className="flex justify-between gap-2">
+                                <span className="text-gray-400">{k}</span>
+                                <span className={`font-semibold ${result.status === 'pass' ? 'text-emerald-700' : 'text-red-700'}`}>
+                                  {String(v ?? '-')}
+                                </span>
+                              </div>
+                            ))
+                          : <span className="text-gray-300">—</span>}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-[11px] text-gray-400 font-mono bg-gray-50 rounded-xl px-3 py-2">
+                    runDate: {sc.runDate}
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -815,6 +1060,10 @@ export default function HomePage() {
             )}
           </div>
         )}
+
+        {/* ── TAB: TEST ───────────────────────────────────────────────────── */}
+        {tab === 'test' && <TestTab />}
+
       </div>
 
       {/* ── MODAL: Create / Edit Karyawan ─────────────────────────────────── */}
@@ -829,13 +1078,22 @@ export default function HomePage() {
               >
                 <option value="APLL">APLL</option>
               </Select>
-              <Input
-                label="No. Karyawan"
-                placeholder="001001"
-                value={form.EmployeeNo}
-                disabled={editMode}
-                onChange={(e) => setForm({ ...form, EmployeeNo: e.target.value })}
-              />
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">
+                  No. Karyawan {editMode && <span className="text-gray-300 normal-case font-normal">(tidak bisa diubah)</span>}
+                </label>
+                <input
+                  placeholder="001001"
+                  value={form.EmployeeNo}
+                  readOnly={editMode}
+                  onChange={(e) => !editMode && setForm({ ...form, EmployeeNo: e.target.value })}
+                  className={`w-full border rounded-xl px-3.5 py-2.5 text-sm focus:outline-none transition ${
+                    editMode
+                      ? 'border-gray-100 bg-gray-50 text-gray-400 cursor-default'
+                      : 'border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-indigo-400 focus:border-transparent'
+                  }`}
+                />
+              </div>
             </div>
             <Input
               label="Nama Lengkap"
