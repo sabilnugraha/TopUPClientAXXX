@@ -28,7 +28,7 @@ function Badge({ value, variant }: { value: unknown; variant: 'success' | 'warn'
 function Stat({ label, value, color }: { label: string; value: unknown; color: string }) {
   return (
     <div className={`rounded-lg p-4 ${color}`}>
-      <div className="text-2xl font-bold">{value ?? '-'}</div>
+      <div className="text-2xl font-bold">{String(value ?? '-')}</div>
       <div className="text-xs mt-1 opacity-70">{label}</div>
     </div>
   );
