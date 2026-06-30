@@ -3,10 +3,11 @@
 import { useState, useCallback } from 'react';
 
 // ── Types ────────────────────────────────────────────────────────────────────
-type RunSummary = Record<string, unknown>;
-type RunRow     = Record<string, unknown>;
-type HistRow    = Record<string, unknown>;
-type DetailRow  = Record<string, unknown>;
+type DbValue    = string | number | boolean | null | undefined;
+type RunSummary = Record<string, DbValue>;
+type RunRow     = Record<string, DbValue>;
+type HistRow    = Record<string, DbValue>;
+type DetailRow  = Record<string, DbValue>;
 
 type Tab = 'run' | 'logs' | 'history';
 
@@ -282,7 +283,7 @@ export default function HomePage() {
                       <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">
                         {r.RunDate ? String(r.RunDate).slice(0, 10) : '-'}
                       </td>
-                      <td className="px-3 py-2 text-xs">{r.PeriodMonth}/{r.PeriodYear}</td>
+                      <td className="px-3 py-2 text-xs">{String(r.PeriodMonth ?? '-')}/{String(r.PeriodYear ?? '-')}</td>
                       <td className="px-3 py-2">{String(r.TotalEmployeesTarget ?? '-')}</td>
                       <td className="px-3 py-2"><Badge value={r.TopUpSuccess}   variant="success" /></td>
                       <td className="px-3 py-2"><Badge value={r.CarrySuccess}   variant="success" /></td>
