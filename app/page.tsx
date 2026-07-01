@@ -8,7 +8,7 @@ type RunRow       = Record<string, DbValue>;
 type HistRow      = Record<string, DbValue>;
 type DetailRow    = Record<string, DbValue>;
 type CompanyGroup = 'APLL' | 'CORI';
-type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test' | 'fungsi';
+type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test' | 'fungsi' | 'panduan';
 
 interface LeaveBalanceRow {
   CompanyCode:        string;
@@ -60,6 +60,7 @@ const APLL_TABS: { id: Tab; label: string }[] = [
   { id:'saldo',    label:'Saldo Leave'      },
   { id:'logs',     label:'Run Logs'         },
   { id:'history',  label:'History'          },
+  { id:'panduan',  label:'Dokumentasi'       },
   { id:'fungsi',   label:'SQL Function'     },
 ];
 const CORI_TABS: { id: Tab; label: string }[] = [
@@ -69,6 +70,7 @@ const CORI_TABS: { id: Tab; label: string }[] = [
   { id:'saldo',    label:'Saldo Leave'      },
   { id:'logs',     label:'Run Logs'         },
   { id:'history',  label:'History'          },
+  { id:'panduan',  label:'Dokumentasi'       },
   { id:'fungsi',   label:'SQL Function'     },
 ];
 
@@ -398,6 +400,213 @@ function CoriTestTab() {
       accentVariant="success"
       noteText="CORI function menggunakan NOW() — test hanya valid jika tanggal karyawan sesuai bulan ini"
     />
+  );
+}
+
+// ── Panduan Tab ───────────────────────────────────────────────────────────────
+function PanduanSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3">
+      <h2 className="text-lg font-bold text-gray-900 border-b border-gray-100 pb-2">{title}</h2>
+      {children}
+    </div>
+  );
+}
+function PanduanRule({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 text-sm">
+      <span className="shrink-0 w-2 h-2 rounded-full bg-gray-300 mt-1.5" />
+      <div><span className="font-semibold text-gray-800">{label} </span><span className="text-gray-600">{children}</span></div>
+    </div>
+  );
+}
+function PanduanNote({ children, variant='amber' }: { children: React.ReactNode; variant?:'amber'|'indigo'|'red' }) {
+  const styles = {
+    amber: 'bg-amber-50 border-amber-300 text-amber-800',
+    indigo:'bg-indigo-50 border-indigo-300 text-indigo-800',
+    red:   'bg-red-50   border-red-300   text-red-800',
+  };
+  return (
+    <div className={`border-l-4 rounded-r-xl px-4 py-3 text-sm ${styles[variant]}`}>{children}</div>
+  );
+}
+function PanduanBadge({ label, color }: { label: string; color: string }) {
+  return <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold ${color}`}>{label}</span>;
+}
+
+function ApllPanduanTab() {
+  return (
+    <div className="space-y-8 max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-black text-gray-900">Panduan Kebijakan Cuti</h1>
+        <p className="text-sm text-gray-400 mt-1">PT Anugrah Pratama Logistik Lestari (APLL)</p>
+      </div>
+
+      {/* AL */}
+      <Card className="p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <PanduanBadge label="AL" color="bg-indigo-100 text-indigo-700" />
+          <h2 className="font-bold text-gray-900">Cuti Tahunan</h2>
+        </div>
+
+        <PanduanSection title="Penambahan Saldo Bulanan">
+          <PanduanRule label="Jumlah:">+1,25 hari per bulan (setara 15 hari per tahun).</PanduanRule>
+          <PanduanRule label="Syarat:">Karyawan dengan masa kerja lebih dari 1 tahun, status Aktif.</PanduanRule>
+          <PanduanRule label="Batas maksimum:">Saldo AL tidak bisa melebihi 20 hari.</PanduanRule>
+        </PanduanSection>
+
+        <PanduanSection title="Carry Over (Peralihan Tahun)">
+          <PanduanRule label="Kapan:">Setiap Januari.</PanduanRule>
+          <PanduanRule label="Mekanisme:">Sisa saldo AL tahun lalu dicatat ke kolom "Saldo Sebelumnya" (LBB) sebagai referensi historis. Saldo aktif tidak terpotong.</PanduanRule>
+        </PanduanSection>
+
+        <PanduanSection title="Reset Saldo Sebelumnya">
+          <PanduanRule label="Kapan:">Setiap Juli.</PanduanRule>
+          <PanduanRule label="Mekanisme:">Kolom "Saldo Sebelumnya" (carry over) direset ke 0. Saldo AL aktif tidak terpengaruh.</PanduanRule>
+        </PanduanSection>
+      </Card>
+
+      {/* PH */}
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <PanduanBadge label="PH" color="bg-violet-100 text-violet-700" />
+          <h2 className="font-bold text-gray-900">Personal Holiday</h2>
+        </div>
+        <PanduanSection title="Penghargaan 5 Tahun (5YSERV)">
+          <PanduanRule label="Jumlah:">+1 hari PH setiap kelipatan 5 tahun masa kerja.</PanduanRule>
+          <PanduanRule label="Referensi:">Dihitung dari tanggal bergabung (Join Date).</PanduanRule>
+          <PanduanRule label="Kapan:">Diberikan otomatis pada bulan anniversary 5, 10, 15, 20 tahun, dst.</PanduanRule>
+        </PanduanSection>
+      </Card>
+
+      {/* HAID */}
+      <Card className="p-6 space-y-4">
+        <div className="flex items-center gap-3">
+          <PanduanBadge label="HAID" color="bg-pink-100 text-pink-700" />
+          <h2 className="font-bold text-gray-900">Cuti Haid</h2>
+        </div>
+        <div className="text-sm text-gray-600">Diberikan kepada karyawan perempuan. Saldo ditambahkan otomatis setiap bulan sesuai ketentuan yang berlaku.</div>
+      </Card>
+
+      {/* Jenis lain */}
+      <Card className="p-6 space-y-4">
+        <h2 className="font-bold text-gray-900">Jenis Cuti Lainnya</h2>
+        <p className="text-sm text-gray-500">Jenis cuti berikut tidak memiliki penambahan saldo otomatis — saldo diatur secara manual oleh HR.</p>
+        <div className="flex flex-wrap gap-2">
+          {['ML','KELUARGA_MENINGGAL','ISTRI_MELAHIRKAN','MENIKAHKAN_ANAK','KHITAN/BABTIS_ANAK','KEGUGURAN','ISTRI_KEGUGURAN'].map(k => (
+            <span key={k} className="px-3 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">{k}</span>
+          ))}
+        </div>
+      </Card>
+
+      {/* Syarat */}
+      <Card className="p-6 space-y-3">
+        <h2 className="font-bold text-gray-900">Syarat Karyawan yang Mendapat Top-Up Otomatis</h2>
+        <PanduanRule label="Status Aktif:">Hanya karyawan dengan status Aktif yang diproses.</PanduanRule>
+        <PanduanRule label="Masa kerja &gt; 1 tahun:">Penambahan AL dan PH baru berlaku setelah karyawan genap 1 tahun.</PanduanRule>
+        <PanduanRule label="Saldo belum maks:">Jika saldo AL sudah 20 hari, tidak ada penambahan sampai saldo dikurangi.</PanduanRule>
+        <PanduanNote>
+          <strong>Keamanan double top-up:</strong> Sistem dirancang agar setiap karyawan hanya menerima satu kali top-up per periode, meskipun proses dijalankan lebih dari sekali dalam bulan yang sama.
+        </PanduanNote>
+      </Card>
+    </div>
+  );
+}
+
+function CoriPanduanTab() {
+  return (
+    <div className="space-y-8 max-w-3xl">
+      <div>
+        <h1 className="text-2xl font-black text-gray-900">Panduan Kebijakan Cuti</h1>
+        <p className="text-sm text-gray-400 mt-1">Corinthian Group — CORI & CII</p>
+      </div>
+
+      {/* AL */}
+      <Card className="p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <PanduanBadge label="AL" color="bg-teal-100 text-teal-700" />
+          <h2 className="font-bold text-gray-900">Cuti Tahunan</h2>
+        </div>
+
+        <PanduanSection title="A. Grant Anniversary +12 Hari (GRANT12)">
+          <PanduanRule label="Kapan:">Diberikan satu kali pada bulan ulang tahun kerja pertama karyawan.</PanduanRule>
+          <PanduanRule label="Karyawan Kontrak (C):">Dihitung dari Contract Start Date.</PanduanRule>
+          <PanduanRule label="Karyawan Tetap (P):">Dihitung dari Effective Permanent Date.</PanduanRule>
+          <PanduanRule label="Jumlah:">+12 hari AL sekaligus.</PanduanRule>
+          <PanduanRule label="Batas saldo:">Saldo AL tidak bisa melebihi 20 hari.</PanduanRule>
+        </PanduanSection>
+
+        <PanduanSection title="B. Penambahan Bulanan +1 Hari (MONTHLY+1)">
+          <PanduanRule label="Kapan:">Setiap bulan, setelah karyawan melewati 1 tahun masa kerja.</PanduanRule>
+          <PanduanRule label="Karyawan Kontrak (C):">Berlaku setelah 1 tahun dari Contract Start Date.</PanduanRule>
+          <PanduanRule label="Karyawan Tetap (P):">Berlaku setelah 1 tahun dari Effective Permanent Date.</PanduanRule>
+          <PanduanRule label="Jumlah:">+1 hari AL per bulan.</PanduanRule>
+          <PanduanRule label="Batas saldo:">Saldo AL tidak bisa melebihi 20 hari.</PanduanRule>
+        </PanduanSection>
+
+        <PanduanNote>
+          <strong>GRANT12 vs MONTHLY+1:</strong> Pada bulan anniversary pertama, karyawan mendapat GRANT12 (+12 hari), bukan MONTHLY+1. Di bulan-bulan biasa setelahnya, karyawan mendapat MONTHLY+1 (+1 hari). Keduanya tidak diberikan bersamaan dalam satu bulan.
+        </PanduanNote>
+      </Card>
+
+      {/* CI */}
+      <Card className="p-6 space-y-5">
+        <div className="flex items-center gap-3">
+          <PanduanBadge label="CI" color="bg-emerald-100 text-emerald-700" />
+          <h2 className="font-bold text-gray-900">Service Award — Cuti CI</h2>
+        </div>
+
+        <PanduanSection title="Syarat Utama">
+          <PanduanRule label="Berlaku untuk semua status:">Karyawan Kontrak (C) maupun Karyawan Tetap (P) sama-sama mendapat Service Award.</PanduanRule>
+          <PanduanRule label="Tanggal referensi:">Karyawan Kontrak (C) menggunakan Contract Start Date; Karyawan Tetap (P) menggunakan Effective Permanent Date.</PanduanRule>
+          <PanduanRule label="Kelipatan 5 tahun:">Award diberikan ketika masa kerja dari tanggal referensi tepat mencapai 5, 10, 15, 20, 25 tahun, dst.</PanduanRule>
+          <PanduanRule label="Bulan anniversary:">Award hanya muncul pada bulan yang sama dengan bulan tanggal referensi — bukan sembarang bulan.</PanduanRule>
+        </PanduanSection>
+
+        <PanduanSection title="Mekanisme">
+          <PanduanRule label="Jumlah:">Saldo CI diset menjadi 22 hari — bukan ditambahkan.</PanduanRule>
+          <PanduanRule label="Tidak berlaku ulang:">Setelah menerima award, karyawan tidak akan menerima lagi sampai kelipatan 5 tahun berikutnya.</PanduanRule>
+        </PanduanSection>
+
+        <PanduanNote variant="red">
+          <strong>Reset, bukan Tambah:</strong> Saldo CI langsung diset ke 22, bukan ditambah 22. Contoh: saldo CI sebelumnya 5 hari → setelah award menjadi 22 hari (bukan 27).
+        </PanduanNote>
+
+        <div className="overflow-x-auto rounded-xl border border-gray-100">
+          <table className="w-full text-xs">
+            <thead className="bg-gray-50">
+              <tr>{['Kondisi','Yang Terjadi'].map(h => <th key={h} className="px-4 py-2.5 text-left text-gray-400 font-semibold uppercase tracking-wide">{h}</th>)}</tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {[
+                ['Tahun ke-1 (bulan anniversary, C atau P)','GRANT12: +12 hari AL'],
+                ['Bulan biasa setelah 1 tahun (C atau P)','MONTHLY+1: +1 hari AL per bulan'],
+                ['Tahun ke-5 dari tanggal referensi (C atau P)','Service Award CI: saldo CI diset ke 22 hari'],
+                ['Tahun ke-10 dari tanggal referensi (C atau P)','Service Award CI: saldo CI diset ke 22 hari'],
+                ['Tahun ke-15, 20, 25, dst.','Service Award CI: saldo CI diset ke 22 hari'],
+              ].map(([cond,result],i) => (
+                <tr key={i} className="hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-gray-600">{cond}</td>
+                  <td className="px-4 py-2.5 font-semibold text-emerald-700">{result}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {/* Syarat */}
+      <Card className="p-6 space-y-3">
+        <h2 className="font-bold text-gray-900">Syarat Karyawan yang Mendapat Top-Up Otomatis</h2>
+        <PanduanRule label="Status Aktif:">Hanya karyawan dengan status Aktif yang diproses.</PanduanRule>
+        <PanduanRule label="Masa kerja &gt; 1 tahun:">GRANT12 dan MONTHLY+1 baru berlaku setelah karyawan genap 1 tahun.</PanduanRule>
+        <PanduanRule label="Saldo AL belum maks:">Jika saldo AL sudah 20 hari, tidak ada penambahan.</PanduanRule>
+        <PanduanRule label="Service Award CI:">Berlaku untuk C dan P. Masa kerja harus tepat kelipatan 5 tahun dari tanggal referensi, pada bulan anniversary tersebut.</PanduanRule>
+        <PanduanNote>
+          <strong>Keamanan double top-up:</strong> Sistem memastikan setiap karyawan hanya menerima satu kali penambahan per periode, meskipun proses dijalankan lebih dari sekali dalam bulan yang sama.
+        </PanduanNote>
+      </Card>
+    </div>
   );
 }
 
@@ -1288,6 +1497,10 @@ export default function HomePage() {
         {/* ── TAB: TEST ────────────────────────────────────────────────────── */}
         {tab === 'test' && !isCori && <TestTab />}
         {tab === 'test' &&  isCori && <CoriTestTab />}
+
+        {/* ── TAB: PANDUAN ─────────────────────────────────────────────────── */}
+        {tab === 'panduan' && !isCori && <ApllPanduanTab />}
+        {tab === 'panduan' &&  isCori && <CoriPanduanTab />}
 
         {/* ── TAB: SQL FUNCTION ────────────────────────────────────────────── */}
         {tab === 'fungsi' && companyGroup && <SqlFunctionTab company={companyGroup} />}
