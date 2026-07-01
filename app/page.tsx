@@ -723,10 +723,7 @@ export default function HomePage() {
                       className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 focus:bg-white transition"
                     />
                     <p className="text-xs text-gray-400 mt-2">
-                      {isCori
-                        ? <span>Corinthian function menggunakan <span className="font-mono bg-gray-100 px-1 rounded">NOW()</span> — date override belum tersedia</span>
-                        : <span>Kosongkan = <span className="font-mono bg-gray-100 px-1 rounded">now()</span> Jakarta</span>
-                      }
+                      <span>Kosongkan = <span className="font-mono bg-gray-100 px-1 rounded">NOW()</span> Jakarta</span>
                     </p>
                   </div>
                   {!isCori && (
@@ -738,7 +735,7 @@ export default function HomePage() {
                   )}
                   {isCori && (
                     <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-                      {[['','Run Sekarang (NOW)']].map(([val,desc])=>(
+                      {[['2026-07-01T00:00','1 Jul 2026'],['2026-06-01T00:00','1 Jun 2026'],['2026-05-01T00:00','1 Mei 2026'],['','NOW() — production']].map(([val,desc])=>(
                         <button key={desc} onClick={()=>setRunDate(val)} className={`text-left px-2.5 py-2 rounded-lg border transition ${runDate===val?'border-emerald-300 bg-emerald-50 text-emerald-700':'border-gray-100 bg-gray-50 hover:border-gray-200'}`}>{desc}</button>
                       ))}
                     </div>

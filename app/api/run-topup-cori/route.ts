@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 interface CoriRow {
@@ -14,10 +14,15 @@ interface CoriRow {
 }
 
 // POST /api/run-topup-cori
-// Calls fn_topup_AL_Corinthian_daily() — uses NOW() internally
-export async function POST() {
+// Body: { date?: string }  — optional date override (ISO 8601), defaults to NOW()
+export async function POST(req: NextRequest) {
   try {
-    const rows = await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"()`);
+    const body = await req.json().catch(() => ({}));
+    const { date } = body as { date?: string };
+
+    const rows = date
+      ? await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"($1::timestamptz)`, [date])
+      : await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"()`);
 
     const summary = {
       GRANT12:  rows.filter((r) => r.Action === 'GRANT12').length,
