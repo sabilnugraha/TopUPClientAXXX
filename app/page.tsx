@@ -8,7 +8,7 @@ type RunRow       = Record<string, DbValue>;
 type HistRow      = Record<string, DbValue>;
 type DetailRow    = Record<string, DbValue>;
 type CompanyGroup = 'APLL' | 'CORI';
-type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test';
+type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test' | 'fungsi';
 
 interface LeaveBalanceRow {
   CompanyCode:        string;
@@ -60,6 +60,7 @@ const APLL_TABS: { id: Tab; label: string }[] = [
   { id:'saldo',    label:'Saldo Leave'      },
   { id:'logs',     label:'Run Logs'         },
   { id:'history',  label:'History'          },
+  { id:'fungsi',   label:'SQL Function'     },
 ];
 const CORI_TABS: { id: Tab; label: string }[] = [
   { id:'run',      label:'Run Topup'        },
@@ -68,6 +69,7 @@ const CORI_TABS: { id: Tab; label: string }[] = [
   { id:'saldo',    label:'Saldo Leave'      },
   { id:'logs',     label:'Run Logs'         },
   { id:'history',  label:'History'          },
+  { id:'fungsi',   label:'SQL Function'     },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -396,6 +398,112 @@ function CoriTestTab() {
       accentVariant="success"
       noteText="CORI function menggunakan NOW() — test hanya valid jika tanggal karyawan sesuai bulan ini"
     />
+  );
+}
+
+// ── SQL Function Tab ──────────────────────────────────────────────────────────
+interface FunctionDefResponse {
+  company:      string;
+  functionName: string;
+  language:     string;
+  args:         string;
+  definition:   string;
+}
+
+function SqlFunctionTab({ company }: { company: CompanyGroup }) {
+  const [data,    setData]    = useState<FunctionDefResponse|null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error,   setError]   = useState('');
+  const [copied,  setCopied]  = useState(false);
+
+  useEffect(() => {
+    setLoading(true); setError(''); setData(null);
+    fetch(`/api/function-def?company=${company}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) setError(d.error);
+        else setData(d);
+      })
+      .catch(e => setError(String(e)))
+      .finally(() => setLoading(false));
+  }, [company]);
+
+  const copyToClipboard = async () => {
+    if (!data?.definition) return;
+    try {
+      await navigator.clipboard.writeText(data.definition);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
+  const isCori = company === 'CORI';
+  const accent = isCori ? 'from-emerald-500 to-teal-500' : 'from-indigo-500 to-violet-500';
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">SQL Function</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Definisi fungsi PostgreSQL — {isCori ? 'Corinthian Group (CORI · CII)' : 'APLL'}
+          </p>
+        </div>
+        {data && (
+          <Btn variant="ghost" size="sm" onClick={copyToClipboard}>
+            {copied ? 'Tersalin!' : 'Salin SQL'}
+          </Btn>
+        )}
+      </div>
+
+      {loading && (
+        <Card className="p-8 flex items-center justify-center text-gray-400 text-sm">
+          Memuat definisi fungsi…
+        </Card>
+      )}
+
+      {error && (
+        <Card className="p-5 border-red-100 bg-red-50">
+          <div className="font-semibold text-red-700 text-sm mb-1">Gagal memuat</div>
+          <div className="text-xs text-red-600 font-mono">{error}</div>
+        </Card>
+      )}
+
+      {data && (
+        <>
+          {/* Metadata bar */}
+          <Card className="p-5">
+            <div className="flex flex-wrap gap-4 text-sm">
+              <div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Function Name</div>
+                <div className={`font-mono font-semibold text-transparent bg-clip-text bg-gradient-to-r ${accent}`}>{data.functionName}</div>
+              </div>
+              <div>
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Language</div>
+                <div className="font-mono text-gray-700 bg-gray-100 px-2 py-0.5 rounded text-xs">{data.language}</div>
+              </div>
+              <div className="flex-1">
+                <div className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mb-1">Arguments</div>
+                <div className="font-mono text-xs text-gray-600">{data.args || '(none)'}</div>
+              </div>
+            </div>
+          </Card>
+
+          {/* SQL code block */}
+          <Card className="overflow-hidden">
+            <div className="flex items-center justify-between px-4 py-3 bg-gray-50 border-b border-gray-100">
+              <span className="text-xs font-bold text-gray-500 uppercase tracking-wide">Function Definition</span>
+              <button onClick={copyToClipboard} className="text-xs text-indigo-500 hover:underline font-medium">
+                {copied ? 'Tersalin!' : 'Salin'}
+              </button>
+            </div>
+            <div className="overflow-x-auto max-h-[70vh] overflow-y-auto">
+              <pre className="p-5 text-xs font-mono text-gray-800 leading-relaxed whitespace-pre">{data.definition}</pre>
+            </div>
+          </Card>
+        </>
+      )}
+    </div>
   );
 }
 
@@ -1180,6 +1288,9 @@ export default function HomePage() {
         {/* ── TAB: TEST ────────────────────────────────────────────────────── */}
         {tab === 'test' && !isCori && <TestTab />}
         {tab === 'test' &&  isCori && <CoriTestTab />}
+
+        {/* ── TAB: SQL FUNCTION ────────────────────────────────────────────── */}
+        {tab === 'fungsi' && companyGroup && <SqlFunctionTab company={companyGroup} />}
 
       </div>
 
