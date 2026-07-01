@@ -877,16 +877,20 @@ export default function HomePage() {
                     }}
                   >
                     <option value="">Semua Karyawan</option>
-                    {[...new Map(leaveRows.map((r) => [r.EmployeeNo, r])).values()].map((r) => (
-                      <option key={r.EmployeeNo} value={r.EmployeeNo}>
-                        {r.EmployeeNo} — {r.FullName}
-                      </option>
-                    ))}
-                    {karyawanList.filter((k) => !leaveRows.find((l) => l.EmployeeNo === String(k.EmployeeNo))).map((k) => (
-                      <option key={String(k.EmployeeNo)} value={String(k.EmployeeNo)}>
-                        {String(k.EmployeeNo)} — {String(k.FullName)}
-                      </option>
-                    ))}
+                    {leaveRows
+                      .filter((r, i, arr) => arr.findIndex((x) => x.EmployeeNo === r.EmployeeNo) === i)
+                      .map((r) => (
+                        <option key={r.EmployeeNo} value={r.EmployeeNo}>
+                          {r.EmployeeNo} — {r.FullName}
+                        </option>
+                      ))}
+                    {karyawanList
+                      .filter((k) => !leaveRows.find((l) => l.EmployeeNo === String(k.EmployeeNo)))
+                      .map((k) => (
+                        <option key={String(k.EmployeeNo)} value={String(k.EmployeeNo)}>
+                          {String(k.EmployeeNo)} — {String(k.FullName)}
+                        </option>
+                      ))}
                   </select>
                   <Btn variant="ghost" size="sm" onClick={() => loadLeaveBalance(leaveEmpFilter || undefined)} disabled={leaveLoad}>
                     {leaveLoad ? '⏳' : '↻ Refresh'}
@@ -975,7 +979,7 @@ export default function HomePage() {
                 </div>
                 {leaveRows.length > 0 && (
                   <div className="px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
-                    {leaveRows.length} baris · {[...new Set(leaveRows.map((r) => r.EmployeeNo))].length} karyawan
+                    {leaveRows.length} baris · {leaveRows.filter((r, i, arr) => arr.findIndex((x) => x.EmployeeNo === r.EmployeeNo) === i).length} karyawan
                   </div>
                 )}
               </Card>
