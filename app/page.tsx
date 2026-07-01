@@ -405,8 +405,8 @@ function CoriTestTab() {
 
 // ── Panduan / Doc Viewer ──────────────────────────────────────────────────────
 function DocViewer({ docPath, children }: { docPath: string; children: React.ReactNode }) {
-  const [mode,   setMode]   = useState<'html'|'word'>('html');
-  const [origin, setOrigin] = useState('');
+  const [wordOpen, setWordOpen] = useState(false);
+  const [origin,   setOrigin]   = useState('');
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
 
@@ -418,36 +418,31 @@ function DocViewer({ docPath, children }: { docPath: string; children: React.Rea
     <div className="space-y-4">
       {/* toolbar */}
       <div className="flex items-center gap-2 flex-wrap">
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-          <button
-            onClick={() => setMode('html')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${mode==='html' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-          >Baca</button>
-          <button
-            onClick={() => setMode('word')}
-            disabled={isLocal}
-            title={isLocal ? 'Hanya tersedia setelah deploy (URL publik)' : undefined}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${mode==='word' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
-          >Preview Word</button>
-        </div>
+        <button
+          onClick={() => setWordOpen(v => !v)}
+          disabled={isLocal}
+          title={isLocal ? 'Tersedia setelah deploy ke Vercel' : undefined}
+          className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold border transition disabled:opacity-40 disabled:cursor-not-allowed ${wordOpen ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >{wordOpen ? 'Tutup Preview' : 'Preview Word'}</button>
         <a
           href={docPath}
           download
-          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+          className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
         >Download .docx</a>
-        {isLocal && mode==='html' && (
+        {isLocal && (
           <span className="text-[11px] text-gray-400">Preview Word tersedia setelah deploy ke Vercel</span>
         )}
       </div>
 
-      {/* content */}
-      {mode === 'html' ? (
-        children
-      ) : (
+      {/* word iframe */}
+      {wordOpen && (
         <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm" style={{ height:'80vh' }}>
           <iframe src={viewerUrl} width="100%" height="100%" frameBorder="0" title="Word Preview" />
         </div>
       )}
+
+      {/* html content — always visible */}
+      {children}
     </div>
   );
 }
