@@ -4,6 +4,17 @@ import { CORI_SCENARIOS, type CoriScenario } from '@/lib/scenarios-cori';
 
 export const maxDuration = 60; // Vercel Pro max
 
+// ── DB ActionType mapping ─────────────────────────────────────────────────────
+// The function stores ActionType differently from the Action column it returns:
+//   GRANT12   → ActionType 'TopUp'  in HistoryTopUpLeaves
+//   MONTHLY+1 → ActionType 'TopUp'  in HistoryTopUpLeaves
+//   CI_5YEARS → ActionType '5years' in HistoryTopUpLeaves
+function dbActionType(scenarioAction: string): string {
+  if (scenarioAction === 'GRANT12' || scenarioAction === 'MONTHLY+1') return 'TopUp';
+  if (scenarioAction === 'CI_5YEARS') return '5years';
+  return scenarioAction;
+}
+
 // ── Row type returned by fn_topup_AL_Corinthian_daily() ──────────────────────
 interface CoriRow {
   CompanyCode:  string;
@@ -267,7 +278,7 @@ export async function POST(req: NextRequest) {
            WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
              AND "LeaveType"=$3 AND "ActionType"=$4
              AND "PeriodYear"=$5 AND "PeriodMonth"=$6`,
-          [companyCode, s.employeeNo, expected.leaveType, expected.actionType, periodYear, periodMonth]
+          [companyCode, s.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
         );
 
         // Insert pre-history entries for idempotency tests
@@ -280,7 +291,7 @@ export async function POST(req: NextRequest) {
                WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
                  AND "LeaveType"=$3 AND "ActionType"=$4
                  AND "PeriodYear"=$5 AND "PeriodMonth"=$6`,
-              [companyCode, s.employeeNo, h.leaveType, h.actionType, hYear, hMonth]
+              [companyCode, s.employeeNo, h.leaveType, dbActionType(h.actionType), hYear, hMonth]
             );
             await query(
               `INSERT INTO "HistoryTopUpLeaves"(
@@ -289,7 +300,7 @@ export async function POST(req: NextRequest) {
                  "ActionDate","ActionType","ChangedBy","ChangedNo"
                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,'CoriTestRunner',0)`,
               [companyCode, s.employeeNo, h.leaveType, hMonth, hYear,
-               h.lbBefore, h.lbbBefore, h.lbAfter, h.lbbAfter, h.actionType]
+               h.lbBefore, h.lbbBefore, h.lbAfter, h.lbbAfter, dbActionType(h.actionType)]
             );
           }
         }
@@ -324,7 +335,7 @@ export async function POST(req: NextRequest) {
            AND "LeaveType"=$3 AND "ActionType"=$4
            AND "PeriodYear"=$5 AND "PeriodMonth"=$6
          ORDER BY "ActionDate" DESC LIMIT 1`,
-        [companyCode2, expected.employeeNo, expected.leaveType, expected.actionType, periodYear, periodMonth]
+        [companyCode2, expected.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
       );
       const histRow = histRows[0] ?? null;
 
@@ -351,7 +362,7 @@ export async function POST(req: NextRequest) {
            WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
              AND "LeaveType"=$3 AND "ActionType"=$4
              AND "PeriodYear"=$5 AND "PeriodMonth"=$6`,
-          [companyCode2, expected.employeeNo, expected.leaveType, expected.actionType, periodYear, periodMonth]
+          [companyCode2, expected.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
         );
         const count = Number(histCount[0]?.cnt ?? 0);
 
