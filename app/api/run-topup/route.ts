@@ -1,38 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+interface RunResult {
+  company: string;
+  runId: string | null;
+  summary: Record<string, unknown> | null;
+  error?: string;
+}
+
+async function runFunction(fnName: string, date?: string): Promise<{ runId: string | null; error?: string }> {
+  try {
+    const sql = date
+      ? `SELECT ${fnName}($1::timestamp) AS run_id`
+      : `SELECT ${fnName}() AS run_id`;
+    const rows = await query<{ run_id: string }>(sql, date ? [date] : []);
+    return { runId: rows[0]?.run_id ?? null };
+  } catch (err) {
+    return { runId: null, error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { date } = body as { date?: string };
+    const body = await req.json().catch(() => ({}));
+    const { date, company } = body as { date?: string; company?: string };
 
-    let sql: string;
-    let params: unknown[];
+    const results: RunResult[] = [];
 
-    if (date) {
-      // Test mode: jalankan dengan tanggal tertentu
-      sql = `SELECT fn_daily_topup_leave_apll($1::timestamp) AS run_id`;
-      params = [date];
-    } else {
-      // Production mode: pakai now() Jakarta
-      sql = `SELECT fn_daily_topup_leave_apll() AS run_id`;
-      params = [];
+    // Tentukan fungsi mana yang dijalankan
+    const runAll = !company || company === 'ALL';
+
+    // ITK/SRH/III — fn_daily_topup_leave
+    if (runAll || company === 'ITK') {
+      const { runId, error } = await runFunction('fn_daily_topup_leave', date);
+      let summary = null;
+      if (runId) {
+        const rows = await query<Record<string, unknown>>(
+          `SELECT * FROM "LeaveTopUpRun" WHERE "RunID" = $1`, [runId]
+        );
+        summary = rows[0] ?? null;
+      }
+      results.push({ company: 'ITK/SRH/III', runId, summary, error });
     }
 
-    const rows = await query<{ run_id: string }>(sql, params);
-    const runId = rows[0]?.run_id;
-
-    if (!runId) {
-      return NextResponse.json({ error: 'No run_id returned' }, { status: 500 });
+    // APLL — fn_daily_topup_leave_apll
+    if (runAll || company === 'APLL') {
+      const { runId, error } = await runFunction('fn_daily_topup_leave_apll', date);
+      let summary = null;
+      if (runId) {
+        const rows = await query<Record<string, unknown>>(
+          `SELECT * FROM "LeaveTopUpRun" WHERE "RunID" = $1`, [runId]
+        );
+        summary = rows[0] ?? null;
+      }
+      results.push({ company: 'APLL', runId, summary, error });
     }
 
-    // Ambil summary run header
-    const summaryRows = await query<Record<string, unknown>>(
-      `SELECT * FROM "LeaveTopUpRun" WHERE "RunID" = $1`,
-      [runId]
+    const hasError = results.some((r) => r.error);
+    return NextResponse.json(
+      { results, ok: !hasError },
+      { status: hasError ? 207 : 200 }
     );
-
-    return NextResponse.json({ runId, summary: summaryRows[0] ?? null });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

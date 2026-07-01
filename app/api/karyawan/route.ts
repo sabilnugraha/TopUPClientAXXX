@@ -49,7 +49,14 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// POST /api/karyawan — create
+const ALL_LEAVE_CODES = [
+  'AL', 'PH', 'HAID',
+  'KHITAN/BABTIS_ANAK', 'ISTRI_MELAHIRKAN', 'ML',
+  'KELUARGA_MENINGGAL', 'MELAHIRKAN', 'MENIKAHKAN_ANAK',
+  'KEGUGURAN', 'ISTRI_KEGUGURAN',
+];
+
+// POST /api/karyawan — create + auto-init PeMasterLeave
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -60,7 +67,18 @@ export async function POST(req: NextRequest) {
        VALUES ($1,$2,$3,$4,$5,$6)`,
       [CompanyCode, EmployeeNo, FullName, JoinDate, Gender, RecordStatus ?? 'A']
     );
-    return NextResponse.json({ ok: true });
+
+    // Auto-insert semua kode cuti ke PeMasterLeave (balance 0)
+    for (const code of ALL_LEAVE_CODES) {
+      await query(
+        `INSERT INTO "PeMasterLeave"("CompanyCode","EmployeeNo","LeaveCode","LeaveBalance","LeaveBalanceBefore","ChangedBy","ChangedNo")
+         VALUES ($1,$2,$3,0,0,'System',0)
+         ON CONFLICT ("CompanyCode","EmployeeNo","LeaveCode") DO NOTHING`,
+        [CompanyCode, EmployeeNo, code]
+      );
+    }
+
+    return NextResponse.json({ ok: true, leaveCodesInitialized: ALL_LEAVE_CODES.length });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
   }

@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
-export async function GET() {
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const companyCode = searchParams.get('companyCode'); // null = semua company
+
   try {
     const rows = await query<Record<string, unknown>>(
       `SELECT
@@ -31,9 +34,9 @@ export async function GET() {
         r."ResetLLFailed",
         r."Notes"
       FROM "LeaveTopUpRun" r
-      WHERE r."CompanyCode" = 'APLL'
+      ${companyCode ? `WHERE r."CompanyCode" = '${companyCode}'` : ''}
       ORDER BY r."RunDate" DESC, r."RunTime" DESC
-      LIMIT 50`
+      LIMIT 100`
     );
     return NextResponse.json(rows);
   } catch (err) {
