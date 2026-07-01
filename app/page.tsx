@@ -616,9 +616,12 @@ export default function HomePage() {
   }, []);
 
   // ── History tab ──────────────────────────────────────────────────────────
-  const [histFilter,  setHistFilter]  = useState({ employeeNo: '', leaveType: '', periodMonth: '', periodYear: '' });
-  const [histRows,    setHistRows]    = useState<HistRow[]>([]);
-  const [histLoading, setHistLoading] = useState(false);
+  const [histFilter,      setHistFilter]      = useState({ employeeNo: '', leaveType: '', periodMonth: '', periodYear: '' });
+  const [histRows,        setHistRows]        = useState<HistRow[]>([]);
+  const [histLoading,     setHistLoading]     = useState(false);
+  const [histDeleting,    setHistDeleting]    = useState<string | null>(null); // key per-row
+  const [deleteRunTarget, setDeleteRunTarget] = useState<RunRow | null>(null);
+  const [deletingRun,     setDeletingRun]     = useState(false);
 
   const loadHistory = useCallback(async () => {
     setHistLoading(true);
@@ -635,6 +638,52 @@ export default function HomePage() {
       setHistLoading(false);
     }
   }, [histFilter]);
+
+  const deleteHistRow = async (row: HistRow) => {
+    const key = `${row.EmployeeNo}|${row.LeaveType}|${row.PeriodYear}|${row.PeriodMonth}|${row.ActionType}`;
+    setHistDeleting(key);
+    try {
+      const p = new URLSearchParams({
+        employeeNo:  String(row.EmployeeNo),
+        leaveType:   String(row.LeaveType),
+        periodYear:  String(row.PeriodYear),
+        periodMonth: String(row.PeriodMonth),
+        actionType:  String(row.ActionType),
+      });
+      const res  = await fetch(`/api/history?${p}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Gagal delete');
+      setHistRows((prev) => prev.filter((r) =>
+        !(r.EmployeeNo === row.EmployeeNo &&
+          r.LeaveType   === row.LeaveType &&
+          r.PeriodYear  === row.PeriodYear &&
+          r.PeriodMonth === row.PeriodMonth &&
+          r.ActionType  === row.ActionType)
+      ));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setHistDeleting(null);
+    }
+  };
+
+  const confirmDeleteRun = async () => {
+    if (!deleteRunTarget) return;
+    setDeletingRun(true);
+    try {
+      const res  = await fetch(`/api/runs/${String(deleteRunTarget.RunID)}`, { method: 'DELETE' });
+      const text = await res.text();
+      const data = text ? JSON.parse(text) : {};
+      if (!res.ok) throw new Error(data.error ?? 'Gagal delete run');
+      setDeleteRunTarget(null);
+      if (selectedRun === String(deleteRunTarget.RunID)) { setSelectedRun(null); setRunDetail(null); }
+      loadRuns();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : String(e));
+    } finally {
+      setDeletingRun(false);
+    }
+  };
 
   const switchTab = (t: Tab) => {
     setTab(t);
@@ -1046,7 +1095,7 @@ export default function HomePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      {['Tanggal', 'Periode', 'Emp', 'AL ✅', 'Carry ✅', 'Reset ✅', 'PH ✅', 'JAN+HAID ✅', 'Failed', ''].map((h) => (
+                      {['Tanggal', 'Periode', 'Emp', 'AL ✅', 'Carry ✅', 'Reset ✅', 'PH ✅', 'JAN+HAID ✅', 'Failed', '', ''].map((h) => (
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
@@ -1085,6 +1134,9 @@ export default function HomePage() {
                             }
                           </td>
                           <td className="px-4 py-3 text-indigo-400">›</td>
+                          <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                            <Btn variant="danger" size="sm" onClick={() => setDeleteRunTarget(r)}>🗑</Btn>
+                          </td>
                         </tr>
                       );
                     })}
@@ -1230,28 +1282,40 @@ export default function HomePage() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        {['Employee', 'Nama', 'Leave', 'Period', 'LB Before', 'LBB Before', 'LB After', 'LBB After', 'Tgl', 'Action'].map((h) => (
+                        {['Employee', 'Nama', 'Leave', 'Period', 'LB Before', 'LBB Before', 'LB After', 'LBB After', 'Tgl', 'Action', ''].map((h) => (
                           <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {histRows.map((h, i) => (
-                        <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition">
-                          <td className="px-4 py-3 font-mono text-xs text-indigo-600 font-semibold">{String(h.EmployeeNo)}</td>
-                          <td className="px-4 py-3 text-xs text-gray-600">{String(h.FullName ?? '')}</td>
-                          <td className="px-4 py-3 font-bold text-xs text-gray-800">{String(h.LeaveType)}</td>
-                          <td className="px-4 py-3 text-xs text-gray-500">{String(h.PeriodMonth)}/{String(h.PeriodYear)}</td>
-                          <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBPraTopUp ?? '')}</td>
-                          <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBBPraTopUp ?? '')}</td>
-                          <td className="px-4 py-3 text-right text-xs font-bold text-emerald-600">{String(h.LBAfterTopUp ?? '')}</td>
-                          <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBBAfterTopUp ?? '')}</td>
-                          <td className="px-4 py-3 text-xs font-mono text-gray-400 whitespace-nowrap">
-                            {h.ActionDate ? String(h.ActionDate).slice(0, 10) : '-'}
-                          </td>
-                          <td className="px-4 py-3"><ActionBadge action={String(h.ActionType)} /></td>
-                        </tr>
-                      ))}
+                      {histRows.map((h, i) => {
+                        const key = `${h.EmployeeNo}|${h.LeaveType}|${h.PeriodYear}|${h.PeriodMonth}|${h.ActionType}`;
+                        return (
+                          <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition">
+                            <td className="px-4 py-3 font-mono text-xs text-indigo-600 font-semibold">{String(h.EmployeeNo)}</td>
+                            <td className="px-4 py-3 text-xs text-gray-600">{String(h.FullName ?? '')}</td>
+                            <td className="px-4 py-3 font-bold text-xs text-gray-800">{String(h.LeaveType)}</td>
+                            <td className="px-4 py-3 text-xs text-gray-500">{String(h.PeriodMonth)}/{String(h.PeriodYear)}</td>
+                            <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBPraTopUp ?? '')}</td>
+                            <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBBPraTopUp ?? '')}</td>
+                            <td className="px-4 py-3 text-right text-xs font-bold text-emerald-600">{String(h.LBAfterTopUp ?? '')}</td>
+                            <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBBAfterTopUp ?? '')}</td>
+                            <td className="px-4 py-3 text-xs font-mono text-gray-400 whitespace-nowrap">
+                              {h.ActionDate ? String(h.ActionDate).slice(0, 10) : '-'}
+                            </td>
+                            <td className="px-4 py-3"><ActionBadge action={String(h.ActionType)} /></td>
+                            <td className="px-4 py-3">
+                              <Btn
+                                variant="danger" size="sm"
+                                disabled={histDeleting === key}
+                                onClick={() => deleteHistRow(h)}
+                              >
+                                {histDeleting === key ? '⏳' : '🗑'}
+                              </Btn>
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -1350,6 +1414,35 @@ export default function HomePage() {
       )}
 
       {/* ── MODAL: Delete confirm ─────────────────────────────────────────── */}
+      {/* ── Modal Konfirmasi Delete Run ──────────────────────────────────── */}
+      {deleteRunTarget && (
+        <Modal title="🗑 Hapus Run?" onClose={() => setDeleteRunTarget(null)}>
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">
+              Hapus run tanggal{' '}
+              <span className="font-bold font-mono text-indigo-600">
+                {String(deleteRunTarget.RunDate ?? '').slice(0, 10)}
+              </span>
+              ?
+            </p>
+            <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-xs text-orange-700 space-y-1">
+              <div className="font-semibold">Yang akan dihapus:</div>
+              <div>• LeaveTopUpRun (1 baris)</div>
+              <div>• LeaveTopUpRunDetail (semua error record run ini)</div>
+              <div>• HistoryTopUpLeaves (semua history tanggal {String(deleteRunTarget.RunDate ?? '').slice(0, 10)})</div>
+            </div>
+            <p className="text-xs text-gray-400">Setelah dihapus, topup bisa dijalankan ulang untuk tanggal yang sama.</p>
+            {formErr && <div className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{formErr}</div>}
+            <div className="flex gap-2">
+              <Btn variant="danger" className="flex-1" onClick={confirmDeleteRun} disabled={deletingRun}>
+                {deletingRun ? '⏳ Menghapus…' : '🗑 Hapus Run + History'}
+              </Btn>
+              <Btn variant="ghost" onClick={() => setDeleteRunTarget(null)}>Batal</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {deleteTarget && (
         <Modal title="🗑 Hapus Karyawan?" onClose={() => setDeleteTarget(null)}>
           <p className="text-sm text-gray-600 mb-4">

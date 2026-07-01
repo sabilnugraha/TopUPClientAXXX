@@ -1,6 +1,52 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+// DELETE /api/runs/:runId — hapus run + detail + history dari tanggal run tsb
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: { runId: string } }
+) {
+  const { runId } = params;
+  try {
+    // Ambil RunDate dulu untuk delete history berdasarkan tanggal
+    const runRows = await query<{ RunDate: string }>(
+      `SELECT "RunDate"::text AS "RunDate" FROM "LeaveTopUpRun" WHERE "RunID" = $1`,
+      [runId]
+    );
+    if (!runRows.length) {
+      return NextResponse.json({ error: 'Run tidak ditemukan' }, { status: 404 });
+    }
+    const runDate = runRows[0].RunDate.slice(0, 10);
+
+    // Delete berurutan
+    const detailDel = await query<{ count: string }>(
+      `WITH d AS (DELETE FROM "LeaveTopUpRunDetail" WHERE "RunID" = $1 RETURNING 1)
+       SELECT COUNT(*)::text AS count FROM d`,
+      [runId]
+    );
+    const histDel = await query<{ count: string }>(
+      `WITH d AS (
+         DELETE FROM "HistoryTopUpLeaves"
+         WHERE "CompanyCode" = 'APLL'
+           AND "ActionDate"::date = $1::date
+         RETURNING 1
+       )
+       SELECT COUNT(*)::text AS count FROM d`,
+      [runDate]
+    );
+    await query(`DELETE FROM "LeaveTopUpRun" WHERE "RunID" = $1`, [runId]);
+
+    return NextResponse.json({
+      ok: true,
+      runDate,
+      detailsDeleted: Number(detailDel[0]?.count ?? 0),
+      historyDeleted: Number(histDel[0]?.count ?? 0),
+    });
+  } catch (err) {
+    return NextResponse.json({ error: String(err) }, { status: 500 });
+  }
+}
+
 export async function GET(
   _req: NextRequest,
   { params }: { params: { runId: string } }
