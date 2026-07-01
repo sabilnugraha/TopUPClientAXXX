@@ -53,21 +53,21 @@ const CORI_LEAVE_CODES = ['','AL','CI'];
 const APLL_EMPTY: KaryawanForm = { CompanyCode:'APLL',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'',ContractStartDate:'',EffectivePermanentDate:'' };
 const CORI_EMPTY: KaryawanForm = { CompanyCode:'CORI',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'C',ContractStartDate:'',EffectivePermanentDate:'' };
 
-const APLL_TABS: { id: Tab; icon: string; label: string }[] = [
-  { id:'run',      icon:'⚡', label:'Run Topup'   },
-  { id:'karyawan', icon:'👥', label:'Karyawan'    },
-  { id:'saldo',    icon:'💰', label:'Saldo Leave' },
-  { id:'logs',     icon:'📋', label:'Run Logs'    },
-  { id:'history',  icon:'📊', label:'History'     },
-  { id:'test',     icon:'🧪', label:'Test'        },
+const APLL_TABS: { id: Tab; label: string }[] = [
+  { id:'run',      label:'Run Topup'   },
+  { id:'karyawan', label:'Karyawan'    },
+  { id:'saldo',    label:'Saldo Leave' },
+  { id:'logs',     label:'Run Logs'    },
+  { id:'history',  label:'History'     },
+  { id:'test',     label:'Test'        },
 ];
-const CORI_TABS: { id: Tab; icon: string; label: string }[] = [
-  { id:'run',      icon:'⚡', label:'Run Topup'   },
-  { id:'karyawan', icon:'👥', label:'Karyawan'    },
-  { id:'saldo',    icon:'💰', label:'Saldo Leave' },
-  { id:'logs',     icon:'📋', label:'Run Logs'    },
-  { id:'history',  icon:'📊', label:'History'     },
-  { id:'test',     icon:'🧪', label:'Test'        },
+const CORI_TABS: { id: Tab; label: string }[] = [
+  { id:'run',      label:'Run Topup'   },
+  { id:'karyawan', label:'Karyawan'    },
+  { id:'saldo',    label:'Saldo Leave' },
+  { id:'logs',     label:'Run Logs'    },
+  { id:'history',  label:'History'     },
+  { id:'test',     label:'Test'        },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -148,6 +148,15 @@ function Stat({ label, value, gradient }: { label: string; value: DbValue; gradi
   );
 }
 
+// ── Status indicator for test scenarios ──────────────────────────────────────
+type TestStatus = 'idle'|'running'|'pass'|'fail';
+function ScenarioStatusDot({ status }: { status: TestStatus }) {
+  if (status === 'pass')    return <span className="w-5 h-5 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-600 text-[11px] font-bold shrink-0">✓</span>;
+  if (status === 'fail')    return <span className="w-5 h-5 flex items-center justify-center rounded-full bg-red-100 text-red-500 text-[11px] font-bold shrink-0">✕</span>;
+  if (status === 'running') return <span className="w-5 h-5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin shrink-0 inline-block" />;
+  return <span className="w-5 h-5 rounded-full border border-gray-200 shrink-0 inline-block" />;
+}
+
 // ── Generic Test Tab ──────────────────────────────────────────────────────────
 interface ScenarioDef { id:string; category:string; emoji:string; name:string; description:string; runDate:string; employeeNo?:string; employeeName?:string; }
 interface ScenarioResult {
@@ -155,7 +164,6 @@ interface ScenarioResult {
   before:Record<string,unknown>|null; after:Record<string,unknown>|null;
   fnRow?:Record<string,unknown>|null;
 }
-type TestStatus = 'idle'|'running'|'pass'|'fail';
 const CAT_COLOR: Record<string,string> = {
   // APLL
   AL:'bg-indigo-100 text-indigo-700', PH:'bg-violet-100 text-violet-700',
@@ -265,18 +273,18 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-gray-900">Test Scenarios 🧪</h1>
+          <h1 className="text-2xl font-black text-gray-900">Test Scenarios</h1>
           <p className="text-sm text-gray-400 mt-1">{total} skenario · otomatis setup, run, dan validasi</p>
-          {noteText && <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2 font-medium">{noteText}</p>}
+          {noteText && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2 font-medium">{noteText}</p>}
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Btn variant="ghost" size="sm" onClick={handleSetup} disabled={setupLoading}>{setupLoading?'⏳':'🗄️'} Setup Dummy Data</Btn>
-          <Btn variant={accentVariant} onClick={runAll} disabled={runningAll||!scenarios.length}>{runningAll?'⏳ Running…':'▶ Run All Tests'}</Btn>
-          <Btn variant="danger" size="sm" onClick={handleCleanup}>🗑 Cleanup</Btn>
+          <Btn variant="ghost" size="sm" onClick={handleSetup} disabled={setupLoading}>{setupLoading?'Loading…':'Setup Dummy Data'}</Btn>
+          <Btn variant={accentVariant} onClick={runAll} disabled={runningAll||!scenarios.length}>{runningAll?'Running…':'Run All Tests'}</Btn>
+          <Btn variant="danger" size="sm" onClick={handleCleanup}>Cleanup</Btn>
         </div>
       </div>
-      {setupMsg && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2"><span>✅</span>{setupMsg}</div>}
-      {cleanupMsg && <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 text-sm flex items-center gap-2"><span>🗑</span>{cleanupMsg}</div>}
+      {setupMsg && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl px-4 py-3 text-sm">{setupMsg}</div>}
+      {cleanupMsg && <div className="bg-orange-50 border border-orange-200 text-orange-700 rounded-xl px-4 py-3 text-sm">{cleanupMsg}</div>}
       {(passed+failed)>0 && (
         <Card className="p-4">
           <div className="flex items-center gap-4">
@@ -296,7 +304,6 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
           const status=statuses[sc.id]??'idle';
           const result=results[sc.id];
           const isOpen=expanded===sc.id;
-          const statusIcon: Record<TestStatus,string>={idle:'○',running:'⏳',pass:'✅',fail:'❌'};
           const statusBg: Record<TestStatus,string>={
             idle:'border-gray-100 bg-white',
             running:'border-indigo-200 bg-indigo-50',
@@ -306,23 +313,23 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
           return (
             <div key={sc.id} className={`rounded-2xl border transition ${statusBg[status]}`}>
               <div className="flex items-center gap-3 p-4">
-                <span className="text-lg w-6 text-center">{statusIcon[status]}</span>
+                <ScenarioStatusDot status={status} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_COLOR[sc.category]??'bg-gray-100 text-gray-600'}`}>{sc.category}</span>
                     {sc.employeeNo && (
                       <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500" title={sc.employeeName}>
-                        👤 {sc.employeeNo}
+                        {sc.employeeNo}
                       </span>
                     )}
-                    <span className="font-semibold text-sm text-gray-800">{sc.emoji} {sc.name}</span>
+                    <span className="font-semibold text-sm text-gray-800">{sc.name}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5 truncate">{sc.description}</p>
                   {result && <p className={`text-xs mt-1 font-medium ${result.status==='pass'?'text-emerald-600':'text-red-600'}`}>{result.message}</p>}
                 </div>
                 <div className="flex gap-2 shrink-0">
                   {result && <button onClick={()=>setExpanded(isOpen?null:sc.id)} className="text-xs text-indigo-500 hover:underline px-2">{isOpen?'Tutup':'Detail'}</button>}
-                  <Btn variant="ghost" size="sm" onClick={()=>runOne(sc.id)} disabled={status==='running'||runningAll}>{status==='running'?'⏳':'▶'}</Btn>
+                  <Btn variant="ghost" size="sm" onClick={()=>runOne(sc.id)} disabled={status==='running'||runningAll}>{status==='running'?'…':'Run'}</Btn>
                 </div>
               </div>
               {isOpen && result && (
@@ -387,7 +394,7 @@ function CoriTestTab() {
       cleanupApi="/api/test/cleanup-cori"
       setupConfirmLabel="Hapus semua data karyawan test CORI/CII (TCORI-*)?"
       accentVariant="success"
-      noteText="⚠ CORI function menggunakan NOW() — test hanya valid jika tanggal karyawan sesuai bulan ini"
+      noteText="CORI function menggunakan NOW() — test hanya valid jika tanggal karyawan sesuai bulan ini"
     />
   );
 }
@@ -687,8 +694,8 @@ export default function HomePage() {
           </div>
           <nav className="flex gap-1 bg-gray-100 rounded-2xl p-1 overflow-x-auto">
             {activeTabs.map(t => (
-              <button key={t.id} onClick={()=>switchTab(t.id)} className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap ${tab===t.id?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
-                <span>{t.icon}</span>{t.label}
+              <button key={t.id} onClick={()=>switchTab(t.id)} className={`px-3.5 py-2 rounded-xl text-xs font-semibold transition whitespace-nowrap ${tab===t.id?'bg-white text-gray-900 shadow-sm':'text-gray-500 hover:text-gray-700'}`}>
+                {t.label}
               </button>
             ))}
           </nav>
@@ -701,7 +708,7 @@ export default function HomePage() {
         {tab === 'run' && (
           <div className="space-y-5">
             <div>
-              <h1 className="text-2xl font-black text-gray-900">Run Topup ⚡</h1>
+              <h1 className="text-2xl font-black text-gray-900">Run Topup</h1>
               <p className="text-sm text-gray-400 mt-1">
                 {isCori ? 'Jalankan fn_topup_AL_Corinthian_daily — CORI & CII' : 'Jalankan function topup leave untuk APLL'}
               </p>
@@ -737,7 +744,7 @@ export default function HomePage() {
                     </div>
                   )}
                   <Btn variant={isCori?'success':'primary'} size="lg" onClick={handleRun} disabled={running} className="w-full">
-                    {running ? '⏳ Running…' : '⚡ Jalankan Sekarang'}
+                    {running ? 'Running…' : 'Jalankan Sekarang'}
                   </Btn>
                 </div>
               </Card>
@@ -745,26 +752,27 @@ export default function HomePage() {
               <div className="space-y-4">
                 {runError && (
                   <Card className="p-5 border-red-100 bg-red-50">
-                    <div className="flex gap-3"><span className="text-2xl">❌</span><div><div className="font-semibold text-red-700 text-sm">Error</div><div className="text-xs text-red-600 mt-1 font-mono">{runError}</div></div></div>
+                    <div className="font-semibold text-red-700 text-sm mb-1">Error</div>
+                    <div className="text-xs text-red-600 font-mono">{runError}</div>
                   </Card>
                 )}
 
                 {/* APLL result */}
                 {!isCori && runResult && (
                   <Card className="p-5">
-                    <div className="flex items-center gap-3 mb-4"><span className="text-2xl">✅</span><div><div className="font-bold text-sm text-gray-900">Run Berhasil!</div><div className="text-[11px] text-gray-400 font-mono mt-0.5 truncate">{runResult.runId}</div></div></div>
+                    <div className="mb-4"><div className="font-bold text-sm text-gray-900">Run Berhasil</div><div className="text-[11px] text-gray-400 font-mono mt-0.5 truncate">{runResult.runId}</div></div>
                     {runResult.summary && (
                       <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-2">
                           <Stat label="Total Karyawan"  value={runResult.summary.TotalEmployeesTarget} gradient="bg-gradient-to-br from-indigo-500 to-violet-500" />
-                          <Stat label="AL Topup ✅"     value={runResult.summary.TopUpSuccess}         gradient="bg-gradient-to-br from-emerald-500 to-teal-500" />
-                          <Stat label="Carry Over ✅"   value={runResult.summary.CarrySuccess}         gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
-                          <Stat label="Reset LBB ✅"    value={runResult.summary.ResetSuccess}         gradient="bg-gradient-to-br from-orange-400 to-pink-500" />
+                          <Stat label="AL Topup"     value={runResult.summary.TopUpSuccess}         gradient="bg-gradient-to-br from-emerald-500 to-teal-500" />
+                          <Stat label="Carry Over"   value={runResult.summary.CarrySuccess}         gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
+                          <Stat label="Reset LBB"    value={runResult.summary.ResetSuccess}         gradient="bg-gradient-to-br from-orange-400 to-pink-500" />
                         </div>
                         <div className="grid grid-cols-3 gap-2">
-                          <Stat label="PH ✅"       value={runResult.summary.FiveYearSuccess} gradient="bg-gradient-to-br from-cyan-500 to-blue-500" />
-                          <Stat label="HAID+JAN ✅" value={runResult.summary.ResetLLSuccess}  gradient="bg-gradient-to-br from-pink-500 to-rose-500" />
-                          <Stat label="Failed ⚠" value={(Number(runResult.summary.TopUpFailed??0)+Number(runResult.summary.CarryFailed??0)+Number(runResult.summary.ResetFailed??0)+Number(runResult.summary.FiveYearFailed??0)+Number(runResult.summary.ResetLLFailed??0))} gradient="bg-gradient-to-br from-red-500 to-rose-600" />
+                          <Stat label="PH"       value={runResult.summary.FiveYearSuccess} gradient="bg-gradient-to-br from-cyan-500 to-blue-500" />
+                          <Stat label="HAID+JAN" value={runResult.summary.ResetLLSuccess}  gradient="bg-gradient-to-br from-pink-500 to-rose-500" />
+                          <Stat label="Failed" value={(Number(runResult.summary.TopUpFailed??0)+Number(runResult.summary.CarryFailed??0)+Number(runResult.summary.ResetFailed??0)+Number(runResult.summary.FiveYearFailed??0)+Number(runResult.summary.ResetLLFailed??0))} gradient="bg-gradient-to-br from-red-500 to-rose-600" />
                         </div>
                         {runResult.summary.Notes && <div className="text-[11px] text-gray-400 font-mono bg-gray-50 rounded-xl px-3 py-2">{String(runResult.summary.Notes)}</div>}
                       </div>
@@ -775,13 +783,13 @@ export default function HomePage() {
                 {/* CORI result */}
                 {isCori && coriRunResult && (
                   <Card className="p-5">
-                    <div className="flex items-center gap-3 mb-4"><span className="text-2xl">✅</span><div><div className="font-bold text-sm text-gray-900">Run Berhasil!</div><div className="text-[11px] text-gray-400 mt-0.5">Corinthian Group · CORI & CII</div></div></div>
+                    <div className="mb-4"><div className="font-bold text-sm text-gray-900">Run Berhasil</div><div className="text-[11px] text-gray-400 mt-0.5">Corinthian Group · CORI & CII</div></div>
                     <div className="space-y-3">
                       <div className="grid grid-cols-2 gap-2">
                         <Stat label="Total Diproses"  value={coriRunResult.summary.Total}    gradient="bg-gradient-to-br from-emerald-500 to-teal-500" />
-                        <Stat label="Grant +12 AL ✅" value={coriRunResult.summary.GRANT12}  gradient="bg-gradient-to-br from-teal-500 to-cyan-500" />
-                        <Stat label="Monthly +1 AL ✅" value={coriRunResult.summary.MONTHLY1} gradient="bg-gradient-to-br from-cyan-500 to-blue-500" />
-                        <Stat label="CI 5-Years ✅"   value={coriRunResult.summary.CI5YEARS} gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
+                        <Stat label="Grant +12 AL" value={coriRunResult.summary.GRANT12}  gradient="bg-gradient-to-br from-teal-500 to-cyan-500" />
+                        <Stat label="Monthly +1 AL" value={coriRunResult.summary.MONTHLY1} gradient="bg-gradient-to-br from-cyan-500 to-blue-500" />
+                        <Stat label="CI 5-Years"   value={coriRunResult.summary.CI5YEARS} gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
                       </div>
                       {coriRunResult.rows.length > 0 && (
                         <div className="overflow-x-auto rounded-xl border border-gray-100 mt-2">
@@ -812,7 +820,6 @@ export default function HomePage() {
 
                 {!runResult && !coriRunResult && !runError && (
                   <Card className="p-8 flex flex-col items-center justify-center text-center text-gray-300">
-                    <div className="text-5xl mb-3">⚡</div>
                     <div className="text-sm font-medium">Belum ada hasil</div>
                     <div className="text-xs mt-1">Klik Jalankan untuk mulai</div>
                   </Card>
@@ -827,7 +834,7 @@ export default function HomePage() {
           <div className="space-y-5">
             <div className="flex items-start justify-between">
               <div>
-                <h1 className="text-2xl font-black text-gray-900">Karyawan 👥</h1>
+                <h1 className="text-2xl font-black text-gray-900">Karyawan</h1>
                 <p className="text-sm text-gray-400 mt-1">Data PeMaster — {groupLabel}</p>
               </div>
               <Btn variant={isCori?'success':'primary'} onClick={openCreate}>+ Tambah</Btn>
@@ -838,7 +845,9 @@ export default function HomePage() {
                 <div className="flex-1 min-w-48">
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Cari</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+                    </span>
                     <input className="w-full border border-gray-200 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 focus:bg-white transition" placeholder="No / Nama karyawan…" value={karyawanSearch} onChange={e=>setKaryawanSearch(e.target.value)} onKeyDown={e=>e.key==='Enter'&&loadKaryawan()} />
                   </div>
                 </div>
@@ -880,7 +889,7 @@ export default function HomePage() {
                   </thead>
                   <tbody>
                     {karyawanList.length===0 && (
-                      <tr><td colSpan={isCori?10:6} className="px-4 py-12 text-center"><div className="text-3xl mb-2">👻</div><div className="text-sm text-gray-400">Tidak ada data</div></td></tr>
+                      <tr><td colSpan={isCori?10:6} className="px-4 py-12 text-center text-sm text-gray-400">Tidak ada data</td></tr>
                     )}
                     {karyawanList.map((row,i)=>(
                       <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition">
@@ -891,7 +900,7 @@ export default function HomePage() {
                           <td className="px-4 py-3">
                             {row.EmploymentStatus ? (
                               <span className={`text-xs font-semibold px-2 py-1 rounded-full ${String(row.EmploymentStatus)==='P'?'bg-violet-50 text-violet-600':'bg-cyan-50 text-cyan-600'}`}>
-                                {String(row.EmploymentStatus)==='P'?'🎗 Permanent':'📋 Contract'}
+                                {String(row.EmploymentStatus)==='P'?'Permanent':'Contract'}
                               </span>
                             ) : <span className="text-gray-300 text-xs">—</span>}
                           </td>
@@ -907,8 +916,8 @@ export default function HomePage() {
                         <td className="px-4 py-3"><StatusDot status={String(row.RecordStatus??'')} /></td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
-                            <Btn variant="ghost" size="sm" onClick={()=>openEdit(row)}>✏️ Edit</Btn>
-                            <Btn variant="danger" size="sm" onClick={()=>setDeleteTarget(row)}>🗑</Btn>
+                            <Btn variant="ghost" size="sm" onClick={()=>openEdit(row)}>Edit</Btn>
+                            <Btn variant="danger" size="sm" onClick={()=>setDeleteTarget(row)}>Hapus</Btn>
                           </div>
                         </td>
                       </tr>
@@ -926,7 +935,7 @@ export default function HomePage() {
           <div className="space-y-5">
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div>
-                <h1 className="text-2xl font-black text-gray-900">Saldo Leave 💰</h1>
+                <h1 className="text-2xl font-black text-gray-900">Saldo Leave</h1>
                 <p className="text-sm text-gray-400 mt-1">Saldo cuti per karyawan — {groupLabel}</p>
               </div>
               <div className="flex gap-2 items-center flex-wrap">
@@ -958,9 +967,9 @@ export default function HomePage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {leaveLoad && <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400 text-sm">⏳ Loading…</td></tr>}
+                    {leaveLoad && <tr><td colSpan={8} className="px-4 py-12 text-center text-gray-400 text-sm">Loading…</td></tr>}
                     {!leaveLoad && leaveRows.length===0 && (
-                      <tr><td colSpan={8} className="px-4 py-12 text-center"><div className="text-3xl mb-2">📭</div><div className="text-sm text-gray-400">Belum ada data saldo</div></td></tr>
+                      <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-400">Belum ada data saldo</td></tr>
                     )}
                     {!leaveLoad && (()=>{
                       let lastKey='';
@@ -985,7 +994,7 @@ export default function HomePage() {
                               {Number(row.LeaveBalanceBefore)>0?<span className="inline-block font-semibold text-sm px-2 py-0.5 rounded-lg bg-violet-50 text-violet-700">{Number(row.LeaveBalanceBefore)}</span>:<span className="text-gray-300 text-xs">—</span>}
                             </td>
                             <td className="px-4 py-2.5 text-xs text-gray-500 font-mono whitespace-nowrap">{row.ExpiredDate?String(row.ExpiredDate).slice(0,10):<span className="text-gray-300">—</span>}</td>
-                            <td className="px-4 py-2.5"><Btn variant="ghost" size="sm" onClick={()=>openLeaveEdit(row)}>✏️</Btn></td>
+                            <td className="px-4 py-2.5"><Btn variant="ghost" size="sm" onClick={()=>openLeaveEdit(row)}>Edit</Btn></td>
                           </tr>
                         );
                       });
@@ -1007,7 +1016,7 @@ export default function HomePage() {
           <div className="space-y-5">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-black text-gray-900">Run Logs 📋</h1>
+                <h1 className="text-2xl font-black text-gray-900">Run Logs</h1>
                 <p className="text-sm text-gray-400 mt-1">History eksekusi function topup{isCori?' — APLL Run Logs (CORI logs belum tersedia)':''}</p>
               </div>
               <Btn variant="ghost" onClick={loadRuns} disabled={logsLoading}>{logsLoading?'Loading…':'↻ Refresh'}</Btn>
@@ -1017,14 +1026,14 @@ export default function HomePage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-gray-100">
-                      {['Tanggal','Periode','Emp','AL ✅','Carry ✅','Reset ✅','PH ✅','JAN+HAID ✅','Failed','',''].map(h=>(
+                      {['Tanggal','Periode','Emp','AL','Carry','Reset','PH','JAN+HAID','Failed','',''].map(h=>(
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
                       ))}
                     </tr>
                   </thead>
                   <tbody>
                     {runs.length===0 && (
-                      <tr><td colSpan={11} className="px-4 py-12 text-center"><div className="text-3xl mb-2">📭</div><div className="text-sm text-gray-400">{isCori?'Run log Corinthian belum tersedia':'Belum ada run'}</div></td></tr>
+                      <tr><td colSpan={11} className="px-4 py-12 text-center text-sm text-gray-400">{isCori?'Run log Corinthian belum tersedia':'Belum ada run'}</td></tr>
                     )}
                     {runs.map((r,i)=>{
                       const failed=Number(r.TopUpFailed??0)+Number(r.CarryFailed??0)+Number(r.ResetFailed??0)+Number(r.FiveYearFailed??0)+Number(r.ResetLLFailed??0);
@@ -1041,7 +1050,7 @@ export default function HomePage() {
                           <td className="px-4 py-3"><span className="text-pink-500 font-semibold">{String(r.ResetLLSuccess??0)}</span></td>
                           <td className="px-4 py-3">{failed>0?<span className="bg-red-100 text-red-600 px-2 py-0.5 rounded-full text-xs font-bold">{failed}</span>:<span className="text-gray-300 text-xs">—</span>}</td>
                           <td className="px-4 py-3 text-indigo-400">›</td>
-                          <td className="px-4 py-3" onClick={e=>e.stopPropagation()}><Btn variant="danger" size="sm" onClick={()=>setDeleteRunTarget(r)}>🗑</Btn></td>
+                          <td className="px-4 py-3" onClick={e=>e.stopPropagation()}><Btn variant="danger" size="sm" onClick={()=>setDeleteRunTarget(r)}>Hapus</Btn></td>
                         </tr>
                       );
                     })}
@@ -1061,7 +1070,7 @@ export default function HomePage() {
                   <div className="space-y-5">
                     {runDetail.details.length>0 && (
                       <div>
-                        <div className="flex items-center gap-2 mb-3"><span className="text-sm font-bold text-red-600">⚠ Errors</span><span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-bold">{runDetail.details.length}</span></div>
+                        <div className="flex items-center gap-2 mb-3"><span className="text-sm font-bold text-red-600">Errors</span><span className="bg-red-100 text-red-600 text-xs px-2 py-0.5 rounded-full font-bold">{runDetail.details.length}</span></div>
                         <div className="overflow-x-auto rounded-xl border border-red-100">
                           <table className="w-full text-xs">
                             <thead className="bg-red-50"><tr>{['Employee','Leave','Action','Status','Error'].map(h=><th key={h} className="px-3 py-2 text-left text-gray-500 uppercase text-[10px] tracking-wide">{h}</th>)}</tr></thead>
@@ -1113,7 +1122,7 @@ export default function HomePage() {
         {tab === 'history' && (
           <div className="space-y-5">
             <div>
-              <h1 className="text-2xl font-black text-gray-900">History 📊</h1>
+              <h1 className="text-2xl font-black text-gray-900">History</h1>
               <p className="text-sm text-gray-400 mt-1">Riwayat topup per karyawan — {groupLabel}</p>
             </div>
             <Card className="p-5">
@@ -1125,7 +1134,7 @@ export default function HomePage() {
                 <Input label="Bulan" type="number" placeholder="6" min={1} max={12} value={histFilter.periodMonth} onChange={e=>setHistFilter({...histFilter,periodMonth:e.target.value})} />
                 <Input label="Tahun" type="number" placeholder="2026" value={histFilter.periodYear} onChange={e=>setHistFilter({...histFilter,periodYear:e.target.value})} />
               </div>
-              <div className="mt-4"><Btn variant={isCori?'success':'primary'} onClick={loadHistory} disabled={histLoading}>{histLoading?'⏳ Loading…':'🔍 Cari'}</Btn></div>
+              <div className="mt-4"><Btn variant={isCori?'success':'primary'} onClick={loadHistory} disabled={histLoading}>{histLoading?'Loading…':'Cari'}</Btn></div>
             </Card>
 
             {histRows.length>0 && (
@@ -1155,7 +1164,7 @@ export default function HomePage() {
                             <td className="px-4 py-3 text-right text-xs text-gray-500">{String(h.LBBAfterTopUp??'')}</td>
                             <td className="px-4 py-3 text-xs font-mono text-gray-400 whitespace-nowrap">{h.ActionDate?String(h.ActionDate).slice(0,10):'-'}</td>
                             <td className="px-4 py-3"><ActionBadge action={String(h.ActionType)} /></td>
-                            <td className="px-4 py-3"><Btn variant="danger" size="sm" disabled={histDeleting===key} onClick={()=>deleteHistRow(h)}>{histDeleting===key?'⏳':'🗑'}</Btn></td>
+                            <td className="px-4 py-3"><Btn variant="danger" size="sm" disabled={histDeleting===key} onClick={()=>deleteHistRow(h)}>{histDeleting===key?'…':'Hapus'}</Btn></td>
                           </tr>
                         );
                       })}
@@ -1166,7 +1175,7 @@ export default function HomePage() {
               </Card>
             )}
             {histRows.length===0 && !histLoading && (
-              <div className="text-center py-16 text-gray-300"><div className="text-5xl mb-3">📊</div><div className="text-sm font-medium">Klik Cari untuk menampilkan data</div></div>
+              <div className="text-center py-16 text-gray-400 text-sm">Klik Cari untuk menampilkan data</div>
             )}
           </div>
         )}
@@ -1179,7 +1188,7 @@ export default function HomePage() {
 
       {/* ── MODAL: Create / Edit Karyawan ──────────────────────────────────── */}
       {showModal && (
-        <Modal title={editMode?'✏️ Edit Karyawan':'➕ Tambah Karyawan'} onClose={()=>setShowModal(false)}>
+        <Modal title={editMode?'Edit Karyawan':'Tambah Karyawan'} onClose={()=>setShowModal(false)}>
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Select label="Company" value={form.CompanyCode} onChange={e=>setForm({...form,CompanyCode:e.target.value})}>
@@ -1200,8 +1209,8 @@ export default function HomePage() {
                 <option value="F">♀ Female</option>
               </Select>
               <Select label="Status" value={form.RecordStatus} onChange={e=>setForm({...form,RecordStatus:e.target.value})}>
-                <option value="A">✅ Aktif</option>
-                <option value="I">❌ Nonaktif</option>
+                <option value="A">Aktif</option>
+                <option value="I">Nonaktif</option>
               </Select>
             </div>
 
@@ -1209,8 +1218,8 @@ export default function HomePage() {
             {isCori && (
               <>
                 <Select label="Status Kerja" value={form.EmploymentStatus} onChange={e=>setForm({...form,EmploymentStatus:e.target.value})}>
-                  <option value="C">📋 Contract</option>
-                  <option value="P">🎗 Permanent</option>
+                  <option value="C">Contract</option>
+                  <option value="P">Permanent</option>
                 </Select>
                 <div className="grid grid-cols-2 gap-3">
                   <Input label="Tgl Mulai Kontrak" type="date" value={form.ContractStartDate} onChange={e=>setForm({...form,ContractStartDate:e.target.value})} />
@@ -1221,7 +1230,7 @@ export default function HomePage() {
 
             {formErr && <div className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 font-mono">{formErr}</div>}
             <div className="flex gap-2 pt-1">
-              <Btn variant={isCori?'success':'primary'} className="flex-1" onClick={saveKaryawan} disabled={formSaving}>{formSaving?'Menyimpan…':editMode?'💾 Simpan':'➕ Tambah'}</Btn>
+              <Btn variant={isCori?'success':'primary'} className="flex-1" onClick={saveKaryawan} disabled={formSaving}>{formSaving?'Menyimpan…':editMode?'Simpan':'Tambah'}</Btn>
               <Btn variant="ghost" onClick={()=>setShowModal(false)}>Batal</Btn>
             </div>
           </div>
@@ -1230,7 +1239,7 @@ export default function HomePage() {
 
       {/* ── MODAL: Delete Run ──────────────────────────────────────────────── */}
       {deleteRunTarget && (
-        <Modal title="🗑 Hapus Run?" onClose={()=>setDeleteRunTarget(null)}>
+        <Modal title="Hapus Run" onClose={()=>setDeleteRunTarget(null)}>
           <div className="space-y-4">
             <p className="text-sm text-gray-600">Hapus run tanggal <span className="font-bold font-mono text-indigo-600">{String(deleteRunTarget.RunDate??'').slice(0,10)}</span>?</p>
             <div className="bg-orange-50 border border-orange-200 rounded-xl px-4 py-3 text-xs text-orange-700 space-y-1">
@@ -1241,7 +1250,7 @@ export default function HomePage() {
             </div>
             <p className="text-xs text-gray-400">Setelah dihapus, topup bisa dijalankan ulang untuk tanggal yang sama.</p>
             <div className="flex gap-2">
-              <Btn variant="danger" className="flex-1" onClick={confirmDeleteRun} disabled={deletingRun}>{deletingRun?'⏳ Menghapus…':'🗑 Hapus Run + History'}</Btn>
+              <Btn variant="danger" className="flex-1" onClick={confirmDeleteRun} disabled={deletingRun}>{deletingRun?'Menghapus…':'Hapus Run + History'}</Btn>
               <Btn variant="ghost" onClick={()=>setDeleteRunTarget(null)}>Batal</Btn>
             </div>
           </div>
@@ -1250,10 +1259,10 @@ export default function HomePage() {
 
       {/* ── MODAL: Delete Karyawan ─────────────────────────────────────────── */}
       {deleteTarget && (
-        <Modal title="🗑 Hapus Karyawan?" onClose={()=>setDeleteTarget(null)}>
+        <Modal title="Hapus Karyawan" onClose={()=>setDeleteTarget(null)}>
           <p className="text-sm text-gray-600 mb-4">Hapus <span className="font-bold">{String(deleteTarget.FullName)}</span> (<span className="font-mono text-indigo-600">{String(deleteTarget.EmployeeNo)}</span>)? Tindakan ini tidak bisa dibatalkan.</p>
           <div className="flex gap-2">
-            <Btn variant="danger" className="flex-1" onClick={()=>deleteKaryawan(deleteTarget)}>🗑 Hapus</Btn>
+            <Btn variant="danger" className="flex-1" onClick={()=>deleteKaryawan(deleteTarget)}>Hapus</Btn>
             <Btn variant="ghost" onClick={()=>setDeleteTarget(null)}>Batal</Btn>
           </div>
         </Modal>
@@ -1261,7 +1270,7 @@ export default function HomePage() {
 
       {/* ── MODAL: Edit Saldo Leave ────────────────────────────────────────── */}
       {leaveEditRow && (
-        <Modal title={`✏️ Edit Saldo — ${leaveEditRow.EmployeeNo} · ${leaveEditRow.LeaveCode}`} onClose={()=>setLeaveEditRow(null)}>
+        <Modal title={`Edit Saldo — ${leaveEditRow.EmployeeNo} · ${leaveEditRow.LeaveCode}`} onClose={()=>setLeaveEditRow(null)}>
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-xs text-gray-500">
               <span className="font-semibold text-gray-700">{leaveEditRow.FullName}</span>
@@ -1276,7 +1285,7 @@ export default function HomePage() {
             <Input label="Expired Date (carry over)" type="date" value={leaveEditForm.ExpiredDate} onChange={e=>setLeaveEditForm(f=>({...f,ExpiredDate:e.target.value}))} />
             {leaveEditErr && <div className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{leaveEditErr}</div>}
             <div className="flex gap-2">
-              <Btn variant={isCori?'success':'primary'} className="flex-1" onClick={saveLeave} disabled={leaveEditSaving}>{leaveEditSaving?'⏳ Menyimpan…':'💾 Simpan'}</Btn>
+              <Btn variant={isCori?'success':'primary'} className="flex-1" onClick={saveLeave} disabled={leaveEditSaving}>{leaveEditSaving?'Menyimpan…':'Simpan'}</Btn>
               <Btn variant="ghost" onClick={()=>setLeaveEditRow(null)}>Batal</Btn>
             </div>
           </div>

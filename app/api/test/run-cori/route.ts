@@ -297,8 +297,8 @@ export async function POST(req: NextRequest) {
               `INSERT INTO "HistoryTopUpLeaves"(
                  "CompanyCode","EmployeeNo","LeaveType","PeriodMonth","PeriodYear",
                  "LBPraTopUp","LBBPraTopUp","LBAfterTopUp","LBBAfterTopUp",
-                 "ActionDate","ActionType","ChangedBy","ChangedNo"
-               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,'CoriTestRunner',0)`,
+                 "ActionDate","ActionType"
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10)`,
               [companyCode, s.employeeNo, h.leaveType, hMonth, hYear,
                h.lbBefore, h.lbbBefore, h.lbAfter, h.lbbAfter, dbActionType(h.actionType)]
             );
