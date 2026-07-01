@@ -67,6 +67,7 @@ const CORI_TABS: { id: Tab; icon: string; label: string }[] = [
   { id:'saldo',    icon:'💰', label:'Saldo Leave' },
   { id:'logs',     icon:'📋', label:'Run Logs'    },
   { id:'history',  icon:'📊', label:'History'     },
+  { id:'test',     icon:'🧪', label:'Test'        },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -147,13 +148,33 @@ function Stat({ label, value, gradient }: { label: string; value: DbValue; gradi
   );
 }
 
-// ── Test Tab (APLL only) ──────────────────────────────────────────────────────
+// ── Generic Test Tab ──────────────────────────────────────────────────────────
 interface ScenarioDef { id:string; category:string; emoji:string; name:string; description:string; runDate:string; }
-interface ScenarioResult { id:string; status:'pass'|'fail'; message:string; before:Record<string,unknown>|null; after:Record<string,unknown>|null; }
+interface ScenarioResult {
+  id:string; status:'pass'|'fail'; message:string;
+  before:Record<string,unknown>|null; after:Record<string,unknown>|null;
+  fnRow?:Record<string,unknown>|null;
+}
 type TestStatus = 'idle'|'running'|'pass'|'fail';
-const CAT_COLOR: Record<string,string> = { AL:'bg-indigo-100 text-indigo-700', PH:'bg-violet-100 text-violet-700', HAID:'bg-pink-100 text-pink-700', JAN:'bg-emerald-100 text-emerald-700' };
+const CAT_COLOR: Record<string,string> = {
+  // APLL
+  AL:'bg-indigo-100 text-indigo-700', PH:'bg-violet-100 text-violet-700',
+  HAID:'bg-pink-100 text-pink-700',   JAN:'bg-emerald-100 text-emerald-700',
+  // CORI
+  GRANT12:'bg-teal-100 text-teal-700', 'MONTHLY+1':'bg-cyan-100 text-cyan-700',
+  CI_5YEARS:'bg-emerald-100 text-emerald-700', EDGE:'bg-gray-100 text-gray-600',
+};
 
-function TestTab() {
+interface GenericTestTabProps {
+  runApi:     string;   // e.g. '/api/test/run' or '/api/test/run-cori'
+  setupApi:   string;   // e.g. '/api/test/setup'
+  cleanupApi: string;   // e.g. '/api/test/cleanup'
+  setupConfirmLabel: string;
+  accentVariant: 'primary'|'success';
+  noteText?: string;    // extra info shown under title
+}
+
+function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accentVariant, noteText }: GenericTestTabProps) {
   const [scenarios,    setScenarios]    = useState<ScenarioDef[]>([]);
   const [statuses,     setStatuses]     = useState<Record<string,TestStatus>>({});
   const [results,      setResults]      = useState<Record<string,ScenarioResult>>({});
@@ -164,23 +185,25 @@ function TestTab() {
   const [setupLoading, setSetupLoading] = useState(false);
 
   useEffect(() => {
-    fetch('/api/test/run').then(r=>r.json()).then(data=>{ if(Array.isArray(data)) setScenarios(data); });
-  }, []);
+    fetch(runApi).then(r=>r.json()).then(data=>{ if(Array.isArray(data)) setScenarios(data); });
+  }, [runApi]);
 
   const handleSetup = async () => {
     setSetupLoading(true); setSetupMsg('');
-    try { const res=await fetch('/api/test/setup',{method:'POST'}); const data=await res.json(); setSetupMsg(data.message??(data.error?`Error: ${data.error}`:'Done')); }
-    finally { setSetupLoading(false); }
+    try {
+      const res=await fetch(setupApi,{method:'POST'}); const data=await res.json();
+      setSetupMsg(data.message??(data.error?`Error: ${data.error}`:'Done'));
+    } finally { setSetupLoading(false); }
   };
   const handleCleanup = async () => {
-    if(!confirm('Hapus semua data karyawan test (TEST-0x)?')) return;
-    const res=await fetch('/api/test/cleanup',{method:'DELETE'}); const data=await res.json();
+    if(!confirm(setupConfirmLabel)) return;
+    const res=await fetch(cleanupApi,{method:'DELETE'}); const data=await res.json();
     setCleanupMsg(data.message??(data.error?`Error: ${data.error}`:'Done'));
   };
   const runOne = async (id: string) => {
     setStatuses(s=>({...s,[id]:'running'}));
     try {
-      const res=await fetch('/api/test/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scenarioId:id})});
+      const res=await fetch(runApi,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scenarioId:id})});
       const data=await res.json();
       if(data.results?.[0]){ const r=data.results[0] as ScenarioResult; setResults(p=>({...p,[id]:r})); setStatuses(s=>({...s,[id]:r.status})); }
     } catch { setStatuses(s=>({...s,[id]:'fail'})); }
@@ -191,7 +214,7 @@ function TestTab() {
     scenarios.forEach(s=>{ init[s.id]='running'; });
     setStatuses(init);
     try {
-      const res=await fetch('/api/test/run',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
+      const res=await fetch(runApi,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
       const data=await res.json();
       if(data.results){
         const newStatus: Record<string,TestStatus>={};
@@ -212,10 +235,11 @@ function TestTab() {
         <div>
           <h1 className="text-2xl font-black text-gray-900">Test Scenarios 🧪</h1>
           <p className="text-sm text-gray-400 mt-1">{total} skenario · otomatis setup, run, dan validasi</p>
+          {noteText && <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2 font-medium">{noteText}</p>}
         </div>
         <div className="flex gap-2 flex-wrap">
           <Btn variant="ghost" size="sm" onClick={handleSetup} disabled={setupLoading}>{setupLoading?'⏳':'🗄️'} Setup Dummy Data</Btn>
-          <Btn variant="success" onClick={runAll} disabled={runningAll||!scenarios.length}>{runningAll?'⏳ Running…':'▶ Run All Tests'}</Btn>
+          <Btn variant={accentVariant} onClick={runAll} disabled={runningAll||!scenarios.length}>{runningAll?'⏳ Running…':'▶ Run All Tests'}</Btn>
           <Btn variant="danger" size="sm" onClick={handleCleanup}>🗑 Cleanup</Btn>
         </div>
       </div>
@@ -225,7 +249,7 @@ function TestTab() {
         <Card className="p-4">
           <div className="flex items-center gap-4">
             <div className="flex-1 bg-gray-100 rounded-full h-3 overflow-hidden">
-              <div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-500 rounded-full transition-all" style={{width:`${total?(passed/total)*100:0}%`}} />
+              <div className={`h-full rounded-full transition-all ${accentVariant==='success'?'bg-gradient-to-r from-emerald-400 to-emerald-500':'bg-gradient-to-r from-indigo-400 to-violet-500'}`} style={{width:`${total?(passed/total)*100:0}%`}} />
             </div>
             <div className="flex gap-4 text-sm font-semibold">
               <span className="text-emerald-600">✓ {passed} passed</span>
@@ -241,7 +265,12 @@ function TestTab() {
           const result=results[sc.id];
           const isOpen=expanded===sc.id;
           const statusIcon: Record<TestStatus,string>={idle:'○',running:'⏳',pass:'✅',fail:'❌'};
-          const statusBg: Record<TestStatus,string>={idle:'border-gray-100 bg-white',running:'border-indigo-200 bg-indigo-50',pass:'border-emerald-200 bg-emerald-50',fail:'border-red-200 bg-red-50'};
+          const statusBg: Record<TestStatus,string>={
+            idle:'border-gray-100 bg-white',
+            running:'border-indigo-200 bg-indigo-50',
+            pass:'border-emerald-200 bg-emerald-50',
+            fail:'border-red-200 bg-red-50',
+          };
           return (
             <div key={sc.id} className={`rounded-2xl border transition ${statusBg[status]}`}>
               <div className="flex items-center gap-3 p-4">
@@ -255,25 +284,42 @@ function TestTab() {
                   {result && <p className={`text-xs mt-1 font-medium ${result.status==='pass'?'text-emerald-600':'text-red-600'}`}>{result.message}</p>}
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  {result && <button onClick={()=>setExpanded(isOpen?null:sc.id)} className="text-xs text-indigo-500 hover:underline px-2">{isOpen?'Tutup':'Before/After'}</button>}
+                  {result && <button onClick={()=>setExpanded(isOpen?null:sc.id)} className="text-xs text-indigo-500 hover:underline px-2">{isOpen?'Tutup':'Detail'}</button>}
                   <Btn variant="ghost" size="sm" onClick={()=>runOne(sc.id)} disabled={status==='running'||runningAll}>{status==='running'?'⏳':'▶'}</Btn>
                 </div>
               </div>
               {isOpen && result && (
-                <div className="border-t border-gray-100 px-4 pb-4 pt-3">
+                <div className="border-t border-gray-100 px-4 pb-4 pt-3 space-y-3">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[['Before',result.before,'bg-gray-50','text-gray-700'],['After',result.after,result.status==='pass'?'bg-emerald-50':'bg-red-50',result.status==='pass'?'text-emerald-700':'text-red-700']].map(([label,data,bg,textClr])=>(
-                      <div key={String(label)}>
-                        <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{String(label)}</div>
-                        <div className={`${String(bg)} rounded-xl p-3 font-mono text-xs space-y-1`}>
-                          {data ? Object.entries(data as Record<string,unknown>).map(([k,v])=>(
-                            <div key={k} className="flex justify-between gap-2"><span className="text-gray-400">{k}</span><span className={`font-semibold ${String(textClr)}`}>{String(v??'-')}</span></div>
-                          )) : <span className="text-gray-300">—</span>}
+                    {(['Before','After'] as const).map(label=>{
+                      const data = label==='Before' ? result.before : result.after;
+                      const bg   = label==='After' ? (result.status==='pass'?'bg-emerald-50':'bg-red-50') : 'bg-gray-50';
+                      const clr  = label==='After' ? (result.status==='pass'?'text-emerald-700':'text-red-700') : 'text-gray-700';
+                      return (
+                        <div key={label}>
+                          <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">{label}</div>
+                          <div className={`${bg} rounded-xl p-3 font-mono text-xs space-y-1`}>
+                            {data ? Object.entries(data).map(([k,v])=>(
+                              <div key={k} className="flex justify-between gap-2"><span className="text-gray-400">{k}</span><span className={`font-semibold ${clr}`}>{String(v??'-')}</span></div>
+                            )) : <span className="text-gray-300">—</span>}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
-                  <div className="mt-3 text-[11px] text-gray-400 font-mono bg-gray-50 rounded-xl px-3 py-2">runDate: {sc.runDate}</div>
+                  {result.fnRow && (
+                    <div>
+                      <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Function Output Row</div>
+                      <div className="bg-teal-50 rounded-xl p-3 font-mono text-xs space-y-1">
+                        {Object.entries(result.fnRow).map(([k,v])=>(
+                          <div key={k} className="flex justify-between gap-2"><span className="text-gray-400">{k}</span><span className="font-semibold text-teal-700">{String(v??'-')}</span></div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <div className="text-[11px] text-gray-400 font-mono bg-gray-50 rounded-xl px-3 py-2">
+                    runDate: {sc.runDate}
+                  </div>
                 </div>
               )}
             </div>
@@ -281,6 +327,31 @@ function TestTab() {
         })}
       </div>
     </div>
+  );
+}
+
+// ── TestTab wrappers ──────────────────────────────────────────────────────────
+function TestTab() {
+  return (
+    <GenericTestTab
+      runApi="/api/test/run"
+      setupApi="/api/test/setup"
+      cleanupApi="/api/test/cleanup"
+      setupConfirmLabel="Hapus semua data karyawan test APLL (TEST-0x)?"
+      accentVariant="primary"
+    />
+  );
+}
+function CoriTestTab() {
+  return (
+    <GenericTestTab
+      runApi="/api/test/run-cori"
+      setupApi="/api/test/setup-cori"
+      cleanupApi="/api/test/cleanup-cori"
+      setupConfirmLabel="Hapus semua data karyawan test CORI/CII (TCORI-*)?"
+      accentVariant="success"
+      noteText="⚠ CORI function menggunakan NOW() — test hanya valid jika tanggal karyawan sesuai bulan ini"
+    />
   );
 }
 
@@ -1063,8 +1134,9 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* ── TAB: TEST (APLL only) ─────────────────────────────────────────── */}
+        {/* ── TAB: TEST ────────────────────────────────────────────────────── */}
         {tab === 'test' && !isCori && <TestTab />}
+        {tab === 'test' &&  isCori && <CoriTestTab />}
 
       </div>
 
