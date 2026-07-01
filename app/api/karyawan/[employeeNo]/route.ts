@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
+const CORI_COMPANIES = ['CORI', 'CII'];
+
 // GET /api/karyawan/:employeeNo?companyCode=
 export async function GET(
   req: NextRequest,
@@ -26,14 +28,36 @@ export async function PUT(
 ) {
   try {
     const body = await req.json();
-    const { CompanyCode, FullName, JoinDate, Gender, RecordStatus } = body;
+    const {
+      CompanyCode, FullName, JoinDate, Gender, RecordStatus,
+      EmploymentStatus, ContractStartDate, EffectivePermanentDate,
+    } = body;
 
-    await query(
-      `UPDATE "PeMaster"
-       SET "FullName"=$1,"JoinDate"=$2,"Gender"=$3,"RecordStatus"=$4
-       WHERE "CompanyCode"=$5 AND "EmployeeNo"=$6`,
-      [FullName, JoinDate, Gender, RecordStatus, CompanyCode, params.employeeNo]
-    );
+    const isCori = CORI_COMPANIES.includes(CompanyCode);
+
+    if (isCori) {
+      await query(
+        `UPDATE "PeMaster"
+         SET "FullName"=$1,"JoinDate"=$2,"Gender"=$3,"RecordStatus"=$4,
+             "EmploymentStatus"=$5,"ContractStartDate"=$6,"EffectivePermanentDate"=$7
+         WHERE "CompanyCode"=$8 AND "EmployeeNo"=$9`,
+        [
+          FullName, JoinDate, Gender, RecordStatus,
+          EmploymentStatus ?? 'C',
+          ContractStartDate      || null,
+          EffectivePermanentDate || null,
+          CompanyCode, params.employeeNo,
+        ]
+      );
+    } else {
+      await query(
+        `UPDATE "PeMaster"
+         SET "FullName"=$1,"JoinDate"=$2,"Gender"=$3,"RecordStatus"=$4
+         WHERE "CompanyCode"=$5 AND "EmployeeNo"=$6`,
+        [FullName, JoinDate, Gender, RecordStatus, CompanyCode, params.employeeNo]
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -41,7 +65,6 @@ export async function PUT(
 }
 
 // DELETE /api/karyawan/:employeeNo?companyCode=
-// Cascade: hapus PeMasterLeave + HistoryTopUpLeaves dulu, baru PeMaster
 export async function DELETE(
   req: NextRequest,
   { params }: { params: { employeeNo: string } }
