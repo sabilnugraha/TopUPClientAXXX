@@ -34,7 +34,7 @@ const LEAVE_DESC: Record<string, string> = {
   'ISTRI_KEGUGURAN':     'Istri Keguguran',
 };
 
-type Tab = 'run' | 'karyawan' | 'logs' | 'history' | 'test';
+type Tab = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test';
 
 interface KaryawanForm {
   CompanyCode: string;
@@ -54,6 +54,7 @@ const EMPTY_FORM: KaryawanForm = {
 const TABS: { id: Tab; icon: string; label: string }[] = [
   { id: 'run',      icon: '⚡', label: 'Run Topup'   },
   { id: 'karyawan', icon: '👥', label: 'Karyawan'    },
+  { id: 'saldo',    icon: '💰', label: 'Saldo Leave' },
   { id: 'logs',     icon: '📋', label: 'Run Logs'    },
   { id: 'history',  icon: '📊', label: 'History'     },
   { id: 'test',     icon: '🧪', label: 'Test'        },
@@ -469,6 +470,10 @@ export default function HomePage() {
   const [leaveRows,       setLeaveRows]       = useState<LeaveBalanceRow[]>([]);
   const [leaveLoad,       setLeaveLoad]       = useState(false);
   const [leaveEmpFilter,  setLeaveEmpFilter]  = useState('');
+  const [leaveEditRow,    setLeaveEditRow]    = useState<LeaveBalanceRow | null>(null);
+  const [leaveEditForm,   setLeaveEditForm]   = useState({ LeaveBalance: '0', LeaveBalanceBefore: '0', ExpiredDate: '' });
+  const [leaveEditSaving, setLeaveEditSaving] = useState(false);
+  const [leaveEditErr,    setLeaveEditErr]    = useState('');
 
   const loadKaryawan = useCallback(async () => {
     setKaryawanLoad(true);
@@ -481,6 +486,42 @@ export default function HomePage() {
       setKaryawanLoad(false);
     }
   }, [karyawanSearch, karyawanStatus]);
+
+  const openLeaveEdit = (row: LeaveBalanceRow) => {
+    setLeaveEditRow(row);
+    setLeaveEditForm({
+      LeaveBalance:       String(row.LeaveBalance ?? 0),
+      LeaveBalanceBefore: String(row.LeaveBalanceBefore ?? 0),
+      ExpiredDate:        row.ExpiredDate ? String(row.ExpiredDate).slice(0, 10) : '',
+    });
+    setLeaveEditErr('');
+  };
+
+  const saveLeave = async () => {
+    if (!leaveEditRow) return;
+    setLeaveEditSaving(true); setLeaveEditErr('');
+    try {
+      const res = await fetch(`/api/karyawan-leaves/${leaveEditRow.EmployeeNo}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          CompanyCode:        'APLL',
+          LeaveCode:          leaveEditRow.LeaveCode,
+          LeaveBalance:       Number(leaveEditForm.LeaveBalance),
+          LeaveBalanceBefore: Number(leaveEditForm.LeaveBalanceBefore),
+          ExpiredDate:        leaveEditForm.ExpiredDate || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Gagal menyimpan');
+      setLeaveEditRow(null);
+      loadLeaveBalance(leaveEmpFilter || undefined);
+    } catch (e) {
+      setLeaveEditErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLeaveEditSaving(false);
+    }
+  };
 
   const loadLeaveBalance = useCallback(async (empNo?: string) => {
     setLeaveLoad(true);
@@ -496,8 +537,8 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (tab === 'karyawan') { loadKaryawan(); loadLeaveBalance(); }
-  }, [tab, loadKaryawan, loadLeaveBalance]);
+    if (tab === 'karyawan') loadKaryawan();
+  }, [tab, loadKaryawan]);
 
   const openCreate = () => { setForm(EMPTY_FORM); setEditMode(false); setFormErr(''); setShowModal(true); };
   const openEdit   = (row: RunRow) => {
@@ -525,7 +566,6 @@ export default function HomePage() {
       if (!res.ok) throw new Error(data.error ?? 'Gagal menyimpan');
       setShowModal(false);
       loadKaryawan();
-      loadLeaveBalance(leaveEmpFilter || undefined);
     } catch (e) {
       setFormErr(e instanceof Error ? e.message : String(e));
     } finally {
@@ -541,7 +581,6 @@ export default function HomePage() {
       if (!res.ok) throw new Error(data.error ?? `HTTP ${res.status}`);
       setDeleteTarget(null);
       loadKaryawan();
-      loadLeaveBalance(leaveEmpFilter || undefined);
     } catch (e) {
       alert(e instanceof Error ? e.message : String(e));
     }
@@ -599,7 +638,8 @@ export default function HomePage() {
 
   const switchTab = (t: Tab) => {
     setTab(t);
-    if (t === 'logs') loadRuns();
+    if (t === 'logs')   loadRuns();
+    if (t === 'saldo')  loadLeaveBalance(leaveEmpFilter || undefined);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -862,128 +902,129 @@ export default function HomePage() {
                 </div>
               )}
             </Card>
+          </div>
+        )}
 
-            {/* ── Saldo Leave ──────────────────────────────────────────────── */}
-            <div className="mt-2">
-              <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-                <h2 className="text-base font-bold text-gray-800">📊 Saldo Leave</h2>
-                <div className="flex gap-2 items-center flex-wrap">
-                  <select
-                    className="border border-gray-200 rounded-xl px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
-                    value={leaveEmpFilter}
-                    onChange={(e) => {
-                      setLeaveEmpFilter(e.target.value);
-                      loadLeaveBalance(e.target.value || undefined);
-                    }}
-                  >
-                    <option value="">Semua Karyawan</option>
-                    {leaveRows
-                      .filter((r, i, arr) => arr.findIndex((x) => x.EmployeeNo === r.EmployeeNo) === i)
-                      .map((r) => (
-                        <option key={r.EmployeeNo} value={r.EmployeeNo}>
-                          {r.EmployeeNo} — {r.FullName}
-                        </option>
-                      ))}
-                    {karyawanList
-                      .filter((k) => !leaveRows.find((l) => l.EmployeeNo === String(k.EmployeeNo)))
-                      .map((k) => (
-                        <option key={String(k.EmployeeNo)} value={String(k.EmployeeNo)}>
-                          {String(k.EmployeeNo)} — {String(k.FullName)}
-                        </option>
-                      ))}
-                  </select>
-                  <Btn variant="ghost" size="sm" onClick={() => loadLeaveBalance(leaveEmpFilter || undefined)} disabled={leaveLoad}>
-                    {leaveLoad ? '⏳' : '↻ Refresh'}
-                  </Btn>
-                </div>
+        {/* ── TAB: SALDO LEAVE ────────────────────────────────────────────── */}
+        {tab === 'saldo' && (
+          <div className="space-y-5">
+            <div className="flex items-start justify-between flex-wrap gap-3">
+              <div>
+                <h1 className="text-2xl font-black text-gray-900">Saldo Leave 💰</h1>
+                <p className="text-sm text-gray-400 mt-1">Saldo cuti per karyawan — join PeMaster × PeMasterLeave</p>
               </div>
-
-              <Card className="overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100 bg-gray-50/60">
-                        {['Karyawan', 'Kode Cuti', 'Deskripsi', 'Saldo', 'Carry Over', 'Expired'].map((h) => (
-                          <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
-                            {h}
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {leaveLoad && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center text-gray-400 text-sm">⏳ Loading…</td>
-                        </tr>
-                      )}
-                      {!leaveLoad && leaveRows.length === 0 && (
-                        <tr>
-                          <td colSpan={6} className="px-4 py-8 text-center">
-                            <div className="text-2xl mb-1">📭</div>
-                            <div className="text-xs text-gray-400">Belum ada data saldo</div>
-                          </td>
-                        </tr>
-                      )}
-                      {!leaveLoad && (() => {
-                        let lastEmp = '';
-                        return leaveRows.map((row, i) => {
-                          const isNewEmp = row.EmployeeNo !== lastEmp;
-                          if (isNewEmp) lastEmp = row.EmployeeNo;
-                          return (
-                            <tr key={i} className={`border-b border-gray-50 transition ${isNewEmp && i > 0 ? 'border-t-2 border-t-gray-100' : ''} hover:bg-gray-50`}>
-                              <td className="px-4 py-2.5">
-                                {isNewEmp ? (
-                                  <div>
-                                    <div className="font-mono text-xs font-bold text-indigo-600">{row.EmployeeNo}</div>
-                                    <div className="text-xs text-gray-500">{row.FullName}</div>
-                                  </div>
-                                ) : (
-                                  <span className="text-gray-200 text-xs pl-2">│</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5">
-                                <span className="font-mono text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg whitespace-nowrap">
-                                  {row.LeaveCode}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
-                                {LEAVE_DESC[row.LeaveCode] ?? row.LeaveCode}
-                              </td>
-                              <td className="px-4 py-2.5 text-center">
-                                <span className={`inline-block min-w-8 text-center font-bold text-sm px-2 py-0.5 rounded-lg ${
-                                  Number(row.LeaveBalance) > 0
-                                    ? 'bg-emerald-50 text-emerald-700'
-                                    : 'bg-gray-50 text-gray-400'
-                                }`}>
-                                  {Number(row.LeaveBalance)}
-                                </span>
-                              </td>
-                              <td className="px-4 py-2.5 text-center">
-                                {Number(row.LeaveBalanceBefore) > 0 ? (
-                                  <span className="inline-block font-semibold text-sm px-2 py-0.5 rounded-lg bg-violet-50 text-violet-700">
-                                    {Number(row.LeaveBalanceBefore)}
-                                  </span>
-                                ) : (
-                                  <span className="text-gray-300 text-xs">—</span>
-                                )}
-                              </td>
-                              <td className="px-4 py-2.5 text-xs text-gray-500 font-mono whitespace-nowrap">
-                                {row.ExpiredDate ? String(row.ExpiredDate).slice(0, 10) : <span className="text-gray-300">—</span>}
-                              </td>
-                            </tr>
-                          );
-                        });
-                      })()}
-                    </tbody>
-                  </table>
-                </div>
-                {leaveRows.length > 0 && (
-                  <div className="px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
-                    {leaveRows.length} baris · {leaveRows.filter((r, i, arr) => arr.findIndex((x) => x.EmployeeNo === r.EmployeeNo) === i).length} karyawan
-                  </div>
-                )}
-              </Card>
+              <div className="flex gap-2 items-center flex-wrap">
+                <select
+                  className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                  value={leaveEmpFilter}
+                  onChange={(e) => {
+                    setLeaveEmpFilter(e.target.value);
+                    loadLeaveBalance(e.target.value || undefined);
+                  }}
+                >
+                  <option value="">Semua Karyawan</option>
+                  {leaveRows
+                    .filter((r, i, arr) => arr.findIndex((x) => x.EmployeeNo === r.EmployeeNo) === i)
+                    .map((r) => (
+                      <option key={r.EmployeeNo} value={r.EmployeeNo}>
+                        {r.EmployeeNo} — {r.FullName}
+                      </option>
+                    ))}
+                </select>
+                <Btn variant="ghost" onClick={() => loadLeaveBalance(leaveEmpFilter || undefined)} disabled={leaveLoad}>
+                  {leaveLoad ? 'Loading…' : '↻ Refresh'}
+                </Btn>
+              </div>
             </div>
+
+            <Card className="overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-gray-100 bg-gray-50/60">
+                      {['Karyawan', 'Kode Cuti', 'Deskripsi', 'Saldo', 'Carry Over', 'Expired', ''].map((h) => (
+                        <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {leaveLoad && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center text-gray-400 text-sm">⏳ Loading…</td>
+                      </tr>
+                    )}
+                    {!leaveLoad && leaveRows.length === 0 && (
+                      <tr>
+                        <td colSpan={6} className="px-4 py-12 text-center">
+                          <div className="text-3xl mb-2">📭</div>
+                          <div className="text-sm text-gray-400">Belum ada data saldo</div>
+                        </td>
+                      </tr>
+                    )}
+                    {!leaveLoad && (() => {
+                      let lastEmp = '';
+                      return leaveRows.map((row, i) => {
+                        const isNewEmp = row.EmployeeNo !== lastEmp;
+                        if (isNewEmp) lastEmp = row.EmployeeNo;
+                        return (
+                          <tr key={i} className={`border-b border-gray-50 transition ${isNewEmp && i > 0 ? 'border-t-2 border-t-gray-100' : ''} hover:bg-gray-50`}>
+                            <td className="px-4 py-2.5">
+                              {isNewEmp ? (
+                                <div>
+                                  <div className="font-mono text-xs font-bold text-indigo-600">{row.EmployeeNo}</div>
+                                  <div className="text-xs text-gray-500">{row.FullName}</div>
+                                </div>
+                              ) : (
+                                <span className="text-gray-200 text-xs pl-2">│</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <span className="font-mono text-xs font-semibold bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-lg whitespace-nowrap">
+                                {row.LeaveCode}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500 whitespace-nowrap">
+                              {LEAVE_DESC[row.LeaveCode] ?? row.LeaveCode}
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              <span className={`inline-block min-w-8 text-center font-bold text-sm px-2 py-0.5 rounded-lg ${
+                                Number(row.LeaveBalance) > 0
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-gray-50 text-gray-400'
+                              }`}>
+                                {Number(row.LeaveBalance)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-center">
+                              {Number(row.LeaveBalanceBefore) > 0 ? (
+                                <span className="inline-block font-semibold text-sm px-2 py-0.5 rounded-lg bg-violet-50 text-violet-700">
+                                  {Number(row.LeaveBalanceBefore)}
+                                </span>
+                              ) : (
+                                <span className="text-gray-300 text-xs">—</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 text-xs text-gray-500 font-mono whitespace-nowrap">
+                              {row.ExpiredDate ? String(row.ExpiredDate).slice(0, 10) : <span className="text-gray-300">—</span>}
+                            </td>
+                            <td className="px-4 py-2.5">
+                              <Btn variant="ghost" size="sm" onClick={() => openLeaveEdit(row)}>✏️</Btn>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+              {leaveRows.length > 0 && (
+                <div className="px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
+                  {leaveRows.length} baris · {leaveRows.filter((r, i, arr) => arr.findIndex((x) => x.EmployeeNo === r.EmployeeNo) === i).length} karyawan
+                </div>
+              )}
+            </Card>
           </div>
         )}
 
@@ -1321,6 +1362,59 @@ export default function HomePage() {
               🗑 Hapus
             </Btn>
             <Btn variant="ghost" onClick={() => setDeleteTarget(null)}>Batal</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Modal Edit Saldo Leave ────────────────────────────────────────── */}
+      {leaveEditRow && (
+        <Modal
+          title={`✏️ Edit Saldo — ${leaveEditRow.EmployeeNo} · ${leaveEditRow.LeaveCode}`}
+          onClose={() => setLeaveEditRow(null)}
+        >
+          <div className="space-y-4">
+            <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-xs text-gray-500">
+              <span className="font-semibold text-gray-700">{leaveEditRow.FullName}</span>
+              {' · '}
+              <span className="font-mono text-indigo-600">{leaveEditRow.LeaveCode}</span>
+              {' · '}
+              {LEAVE_DESC[leaveEditRow.LeaveCode] ?? leaveEditRow.LeaveCode}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Input
+                label="Saldo (LeaveBalance)"
+                type="number"
+                min="0"
+                value={leaveEditForm.LeaveBalance}
+                onChange={(e) => setLeaveEditForm((f) => ({ ...f, LeaveBalance: e.target.value }))}
+              />
+              <Input
+                label="Carry Over (LeaveBalanceBefore)"
+                type="number"
+                min="0"
+                value={leaveEditForm.LeaveBalanceBefore}
+                onChange={(e) => setLeaveEditForm((f) => ({ ...f, LeaveBalanceBefore: e.target.value }))}
+              />
+            </div>
+
+            <Input
+              label="Expired Date (carry over)"
+              type="date"
+              value={leaveEditForm.ExpiredDate}
+              onChange={(e) => setLeaveEditForm((f) => ({ ...f, ExpiredDate: e.target.value }))}
+            />
+
+            {leaveEditErr && (
+              <div className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{leaveEditErr}</div>
+            )}
+
+            <div className="flex gap-2">
+              <Btn variant="primary" className="flex-1" onClick={saveLeave} disabled={leaveEditSaving}>
+                {leaveEditSaving ? '⏳ Menyimpan…' : '💾 Simpan'}
+              </Btn>
+              <Btn variant="ghost" onClick={() => setLeaveEditRow(null)}>Batal</Btn>
+            </div>
           </div>
         </Modal>
       )}
