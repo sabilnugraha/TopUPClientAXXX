@@ -6,7 +6,7 @@ import { CORI_TEST_EMPLOYEES } from '@/lib/scenarios-cori';
 // Removes all TCORI-* test employees and their associated data from CORI and CII
 export async function DELETE() {
   try {
-    const empNos      = CORI_TEST_EMPLOYEES.map((e) => e.EmployeeNo);
+    const empNos      = CORI_TEST_EMPLOYEES.map((e) => e.employeeNo);
     const companies   = ['CORI', 'CII'];
     const placeholders = empNos.map((_, i) => `$${i + 1}`).join(',');
     const compPlaceholders = companies.map((_, i) => `$${empNos.length + i + 1}`).join(',');
