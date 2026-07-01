@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import { CORI_SCENARIOS, type CoriScenario } from '@/lib/scenarios-cori';
 
+export const maxDuration = 60; // Vercel Pro max
+
 // ── Row type returned by fn_topup_AL_Corinthian_daily() ──────────────────────
 interface CoriRow {
   CompanyCode:  string;

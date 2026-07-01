@@ -208,19 +208,33 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
       if(data.results?.[0]){ const r=data.results[0] as ScenarioResult; setResults(p=>({...p,[id]:r})); setStatuses(s=>({...s,[id]:r.status})); }
     } catch { setStatuses(s=>({...s,[id]:'fail'})); }
   };
+  // Run all scenarios one-by-one from the frontend.
+  // Each request = 1 scenario = 1 fn call → no single request times out.
+  // UI updates progressively as each scenario finishes.
   const runAll = async () => {
     setRunningAll(true);
-    const init: Record<string,TestStatus>={};
-    scenarios.forEach(s=>{ init[s.id]='running'; });
-    setStatuses(init);
+    // Reset all to idle first, then mark running one by one as we go
+    setStatuses({});
     try {
-      const res=await fetch(runApi,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({})});
-      const data=await res.json();
-      if(data.results){
-        const newStatus: Record<string,TestStatus>={};
-        const newResults: Record<string,ScenarioResult>={};
-        (data.results as ScenarioResult[]).forEach(r=>{ newStatus[r.id]=r.status; newResults[r.id]=r; });
-        setStatuses(newStatus); setResults(newResults);
+      for (const sc of scenarios) {
+        setStatuses(prev => ({ ...prev, [sc.id]: 'running' }));
+        try {
+          const res  = await fetch(runApi, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ scenarioId: sc.id }),
+          });
+          const data = await res.json();
+          if (data.results?.[0]) {
+            const r = data.results[0] as ScenarioResult;
+            setResults(prev => ({ ...prev, [sc.id]: r }));
+            setStatuses(prev => ({ ...prev, [sc.id]: r.status }));
+          } else {
+            setStatuses(prev => ({ ...prev, [sc.id]: 'fail' }));
+          }
+        } catch {
+          setStatuses(prev => ({ ...prev, [sc.id]: 'fail' }));
+        }
       }
     } finally { setRunningAll(false); }
   };
