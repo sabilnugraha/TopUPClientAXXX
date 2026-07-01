@@ -149,7 +149,7 @@ function Stat({ label, value, gradient }: { label: string; value: DbValue; gradi
 }
 
 // ── Generic Test Tab ──────────────────────────────────────────────────────────
-interface ScenarioDef { id:string; category:string; emoji:string; name:string; description:string; runDate:string; }
+interface ScenarioDef { id:string; category:string; emoji:string; name:string; description:string; runDate:string; employeeNo?:string; employeeName?:string; }
 interface ScenarioResult {
   id:string; status:'pass'|'fail'; message:string;
   before:Record<string,unknown>|null; after:Record<string,unknown>|null;
@@ -200,20 +200,34 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
     const res=await fetch(cleanupApi,{method:'DELETE'}); const data=await res.json();
     setCleanupMsg(data.message??(data.error?`Error: ${data.error}`:'Done'));
   };
+  const makeErrResult = (id: string, msg: string): ScenarioResult =>
+    ({ id, status: 'fail', message: msg, before: null, after: null });
+
   const runOne = async (id: string) => {
     setStatuses(s=>({...s,[id]:'running'}));
     try {
       const res=await fetch(runApi,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({scenarioId:id})});
       const data=await res.json();
-      if(data.results?.[0]){ const r=data.results[0] as ScenarioResult; setResults(p=>({...p,[id]:r})); setStatuses(s=>({...s,[id]:r.status})); }
-    } catch { setStatuses(s=>({...s,[id]:'fail'})); }
+      if(data.results?.[0]){
+        const r=data.results[0] as ScenarioResult;
+        setResults(p=>({...p,[id]:r}));
+        setStatuses(s=>({...s,[id]:r.status}));
+      } else {
+        const msg = data.error ? `API error: ${data.error}` : 'Tidak ada hasil dari server';
+        setResults(p=>({...p,[id]:makeErrResult(id,msg)}));
+        setStatuses(s=>({...s,[id]:'fail'}));
+      }
+    } catch(e) {
+      const msg = e instanceof Error ? `Network error: ${e.message}` : 'Network error';
+      setResults(p=>({...p,[id]:makeErrResult(id,msg)}));
+      setStatuses(s=>({...s,[id]:'fail'}));
+    }
   };
   // Run all scenarios one-by-one from the frontend.
   // Each request = 1 scenario = 1 fn call → no single request times out.
   // UI updates progressively as each scenario finishes.
   const runAll = async () => {
     setRunningAll(true);
-    // Reset all to idle first, then mark running one by one as we go
     setStatuses({});
     try {
       for (const sc of scenarios) {
@@ -230,9 +244,13 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
             setResults(prev => ({ ...prev, [sc.id]: r }));
             setStatuses(prev => ({ ...prev, [sc.id]: r.status }));
           } else {
+            const msg = data.error ? `API error: ${data.error}` : 'Tidak ada hasil dari server';
+            setResults(prev => ({ ...prev, [sc.id]: makeErrResult(sc.id, msg) }));
             setStatuses(prev => ({ ...prev, [sc.id]: 'fail' }));
           }
-        } catch {
+        } catch(e) {
+          const msg = e instanceof Error ? `Network error: ${e.message}` : 'Network error';
+          setResults(prev => ({ ...prev, [sc.id]: makeErrResult(sc.id, msg) }));
           setStatuses(prev => ({ ...prev, [sc.id]: 'fail' }));
         }
       }
@@ -292,6 +310,11 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${CAT_COLOR[sc.category]??'bg-gray-100 text-gray-600'}`}>{sc.category}</span>
+                    {sc.employeeNo && (
+                      <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-gray-100 text-gray-500" title={sc.employeeName}>
+                        👤 {sc.employeeNo}
+                      </span>
+                    )}
                     <span className="font-semibold text-sm text-gray-800">{sc.emoji} {sc.name}</span>
                   </div>
                   <p className="text-xs text-gray-500 mt-0.5 truncate">{sc.description}</p>

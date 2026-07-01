@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { SCENARIOS, type Scenario } from '@/lib/scenarios';
+import { SCENARIOS, TEST_EMPLOYEES, type Scenario } from '@/lib/scenarios';
 
 interface ScenarioResult {
   id: string;
@@ -164,8 +164,14 @@ export async function POST(req: NextRequest) {
 // GET /api/test/run → return scenario list (no DB)
 export async function GET() {
   return NextResponse.json(
-    SCENARIOS.map(({ id, category, emoji, name, description, runDate, expected }) => ({
-      id, category, emoji, name, description, runDate, expected,
-    }))
+    SCENARIOS.map(({ id, category, emoji, name, description, runDate, expected }) => {
+      const emp = TEST_EMPLOYEES.find(e => e.EmployeeNo === expected.employeeNo);
+      return {
+        id, category, emoji, name, description, runDate,
+        employeeNo:   expected.employeeNo,
+        employeeName: emp?.FullName ?? expected.employeeNo,
+        expected,
+      };
+    })
   );
 }

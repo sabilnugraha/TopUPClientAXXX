@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { CORI_SCENARIOS, type CoriScenario } from '@/lib/scenarios-cori';
+import { CORI_SCENARIOS, CORI_TEST_EMPLOYEES, type CoriScenario } from '@/lib/scenarios-cori';
 
 export const maxDuration = 60; // Vercel Pro max
 
@@ -320,101 +320,165 @@ export async function POST(req: NextRequest) {
       );
       const before = beforeRows[0] ?? null;
 
-      // Run fn_topup_AL_Corinthian_daily()
-      const fnRows = await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"()`);
-
-      // Find our test employee's row
-      const fnRow = fnRows.find(
-        (r) => r.EmployeeNo === expected.employeeNo && r.Action === expected.actionType
-      ) ?? null;
-
-      // Check history
-      const histRows = await query<Record<string, unknown>>(
-        `SELECT * FROM "HistoryTopUpLeaves"
-         WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
-           AND "LeaveType"=$3 AND "ActionType"=$4
-           AND "PeriodYear"=$5 AND "PeriodMonth"=$6
-         ORDER BY "ActionDate" DESC LIMIT 1`,
-        [companyCode2, expected.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
-      );
-      const histRow = histRows[0] ?? null;
-
-      // Capture AFTER
-      const afterRows = await query<Record<string, unknown>>(
-        `SELECT "LeaveCode","LeaveBalance","LeaveBalanceBefore"
-         FROM "PeMasterLeave" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2 AND "LeaveCode"=$3`,
-        [companyCode2, primSetup.employeeNo, primSetup.leaveCode]
-      );
-      const after = afterRows[0] ?? null;
-
-      // Validate
-      const lbAfterActual  = fnRow ? fnRow.LBAfterTopUp : Number(histRow?.LBAfterTopUp ?? 0);
-      const lbBeforeActual = fnRow ? fnRow.LBPraTopUp   : Number(histRow?.LBPraTopUp   ?? 0);
-
       let result: ScenarioResult;
 
-      if (expected.shouldNotExist) {
-        // For idempotency scenarios: check that no NEW record was created AFTER our preHistory setup
-        // We clear history before preHistory insert, so histRow would be the pre-inserted one.
-        // We want to confirm the function did NOT add a SECOND record.
-        const histCount = await query<{ cnt: string }>(
-          `SELECT COUNT(*)::text AS cnt FROM "HistoryTopUpLeaves"
+      if (scenario.runFunctionTwice) {
+        // ── TRUE IDEMPOTENCY: run function twice, assert second run skips ────────
+        // Run 1: function should give the expected action (TopUp written to history)
+        const fnRows1 = await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"()`);
+        const fnRow1  = fnRows1.find(
+          (r) => r.EmployeeNo === expected.employeeNo && r.Action === expected.actionType
+        ) ?? null;
+
+        if (!fnRow1) {
+          // Run 1 didn't give expected action — precondition failed, stop here
+          const afterRows1 = await query<Record<string, unknown>>(
+            `SELECT "LeaveCode","LeaveBalance","LeaveBalanceBefore"
+             FROM "PeMasterLeave" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2 AND "LeaveCode"=$3`,
+            [companyCode2, primSetup.employeeNo, primSetup.leaveCode]
+          );
+          result = {
+            id: scenario.id, status: 'fail',
+            message: `Run pertama tidak memberikan ${expected.actionType} — precondition gagal. Cek employee setup & SQL function.`,
+            before, after: afterRows1[0] ?? null,
+            fnRow: null, expected,
+          };
+        } else {
+          // Run 2: function should skip (guard sees existing TopUp this period)
+          const fnRows2 = await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"()`);
+          const fnRow2  = fnRows2.find(
+            (r) => r.EmployeeNo === expected.employeeNo && r.Action === expected.actionType
+          ) ?? null;
+
+          // Count how many records exist in history for this period
+          const histCountRes = await query<{ cnt: string }>(
+            `SELECT COUNT(*)::text AS cnt FROM "HistoryTopUpLeaves"
+             WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
+               AND "LeaveType"=$3 AND "ActionType"=$4
+               AND "PeriodYear"=$5 AND "PeriodMonth"=$6`,
+            [companyCode2, expected.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
+          );
+          const count = Number(histCountRes[0]?.cnt ?? 0);
+
+          const afterRows2 = await query<Record<string, unknown>>(
+            `SELECT "LeaveCode","LeaveBalance","LeaveBalanceBefore"
+             FROM "PeMasterLeave" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2 AND "LeaveCode"=$3`,
+            [companyCode2, primSetup.employeeNo, primSetup.leaveCode]
+          );
+          const after2 = afterRows2[0] ?? null;
+
+          if (!fnRow2 && count === 1) {
+            result = {
+              id: scenario.id, status: 'pass',
+              message: `Idempotency OK — run kedua skip, history tetap 1 record`,
+              before, after: after2,
+              fnRow: fnRow1 as unknown as Record<string, unknown>, expected,
+            };
+          } else if (count > 1) {
+            result = {
+              id: scenario.id, status: 'fail',
+              message: `Idempotency GAGAL — ${count} records di history (harusnya 1)`,
+              before, after: after2,
+              fnRow: fnRow2 as unknown as Record<string, unknown> | null, expected,
+            };
+          } else {
+            // count===1 but fnRow2 exists — function output said it did something but DB is fine?
+            result = {
+              id: scenario.id, status: 'fail',
+              message: `Idempotency GAGAL — fn output run kedua ada Action=${fnRow2!.Action} padahal harusnya skip`,
+              before, after: after2,
+              fnRow: fnRow2 as unknown as Record<string, unknown> | null, expected,
+            };
+          }
+        }
+      } else {
+        // ── NORMAL FLOW ──────────────────────────────────────────────────────────
+        // Run fn_topup_AL_Corinthian_daily()
+        const fnRows = await query<CoriRow>(`SELECT * FROM "fn_topup_AL_Corinthian_daily"()`);
+
+        // Find our test employee's row
+        const fnRow = fnRows.find(
+          (r) => r.EmployeeNo === expected.employeeNo && r.Action === expected.actionType
+        ) ?? null;
+
+        // Check history
+        const histRows = await query<Record<string, unknown>>(
+          `SELECT * FROM "HistoryTopUpLeaves"
            WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
              AND "LeaveType"=$3 AND "ActionType"=$4
-             AND "PeriodYear"=$5 AND "PeriodMonth"=$6`,
+             AND "PeriodYear"=$5 AND "PeriodMonth"=$6
+           ORDER BY "ActionDate" DESC LIMIT 1`,
           [companyCode2, expected.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
         );
-        const count = Number(histCount[0]?.cnt ?? 0);
+        const histRow = histRows[0] ?? null;
 
-        const hasPreHistory = setups[0].preHistory && setups[0].preHistory.length > 0;
+        // Capture AFTER
+        const afterRows = await query<Record<string, unknown>>(
+          `SELECT "LeaveCode","LeaveBalance","LeaveBalanceBefore"
+           FROM "PeMasterLeave" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2 AND "LeaveCode"=$3`,
+          [companyCode2, primSetup.employeeNo, primSetup.leaveCode]
+        );
+        const after = afterRows[0] ?? null;
 
-        if (hasPreHistory) {
-          // We pre-inserted 1 record. If function added another, count > 1.
-          if (count <= 1 && !fnRow) {
-            result = { id: scenario.id, status: 'pass', message: 'Idempotency OK — tidak ada record duplikat', before, after, fnRow: null, expected };
-          } else if (count > 1) {
-            result = { id: scenario.id, status: 'fail', message: `Idempotency GAGAL — ${count} records ditemukan (harusnya ≤1)`, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+        // Validate
+        const lbAfterActual  = fnRow ? fnRow.LBAfterTopUp : Number(histRow?.LBAfterTopUp ?? 0);
+        const lbBeforeActual = fnRow ? fnRow.LBPraTopUp   : Number(histRow?.LBPraTopUp   ?? 0);
+
+        if (expected.shouldNotExist) {
+          // CI idempotency (preHistory injection) — function ran once, should not have added a record
+          const histCount = await query<{ cnt: string }>(
+            `SELECT COUNT(*)::text AS cnt FROM "HistoryTopUpLeaves"
+             WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2
+               AND "LeaveType"=$3 AND "ActionType"=$4
+               AND "PeriodYear"=$5 AND "PeriodMonth"=$6`,
+            [companyCode2, expected.employeeNo, expected.leaveType, dbActionType(expected.actionType), periodYear, periodMonth]
+          );
+          const count = Number(histCount[0]?.cnt ?? 0);
+
+          const hasPreHistory = setups[0].preHistory && setups[0].preHistory.length > 0;
+          if (hasPreHistory) {
+            if (count <= 1 && !fnRow) {
+              result = { id: scenario.id, status: 'pass', message: 'Idempotency OK — tidak ada record duplikat', before, after, fnRow: null, expected };
+            } else if (count > 1) {
+              result = { id: scenario.id, status: 'fail', message: `Idempotency GAGAL — ${count} records ditemukan (harusnya ≤1)`, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+            } else {
+              result = { id: scenario.id, status: 'fail', message: `Idempotency GAGAL — fn output ada record padahal sudah diproses`, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+            }
           } else {
-            // fnRow exists even though we pre-inserted — function processed this employee again
-            result = { id: scenario.id, status: 'fail', message: `Idempotency GAGAL — fn output ada record padahal sudah diproses`, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+            if (!histRow && !fnRow) {
+              result = { id: scenario.id, status: 'pass', message: 'Benar — tidak ada record/output (sesuai ekspektasi skip)', before, after, fnRow: null, expected };
+            } else {
+              const found = histRow ? `history: ActionType=${String(histRow.ActionType)}` : `fn: Action=${fnRow!.Action}`;
+              result = { id: scenario.id, status: 'fail', message: `Harusnya skip tapi ada ${found}`, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+            }
           }
+        } else if (!histRow && !fnRow) {
+          result = { id: scenario.id, status: 'fail', message: `Record ${expected.actionType} tidak ditemukan di history maupun fn output`, before, after, fnRow: null, expected };
         } else {
-          // No preHistory — just expect zero records
-          if (!histRow && !fnRow) {
-            result = { id: scenario.id, status: 'pass', message: 'Benar — tidak ada record/output (sesuai ekspektasi skip)', before, after, fnRow: null, expected };
-          } else {
-            const found = histRow ? `history: ActionType=${String(histRow.ActionType)}` : `fn: Action=${fnRow!.Action}`;
-            result = { id: scenario.id, status: 'fail', message: `Harusnya skip tapi ada ${found}`, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
-          }
-        }
-      } else if (!histRow && !fnRow) {
-        result = { id: scenario.id, status: 'fail', message: `Record ${expected.actionType} tidak ditemukan di history maupun fn output`, before, after, fnRow: null, expected };
-      } else {
-        let failMsg = '';
+          let failMsg = '';
 
-        if (expected.lbAfter !== undefined) {
-          if (Math.abs(lbAfterActual - expected.lbAfter) > 0.01) {
-            failMsg = `LBAfter expected ${expected.lbAfter}, got ${lbAfterActual}`;
+          if (expected.lbAfter !== undefined) {
+            if (Math.abs(lbAfterActual - expected.lbAfter) > 0.01) {
+              failMsg = `LBAfter expected ${expected.lbAfter}, got ${lbAfterActual}`;
+            }
           }
-        }
-
-        if (!failMsg && expected.lbDelta !== undefined) {
-          const delta = lbAfterActual - lbBeforeActual;
-          if (Math.abs(delta - expected.lbDelta) > 0.01) {
-            failMsg = `Delta expected +${expected.lbDelta}, got +${delta.toFixed(2)} (LBPra=${lbBeforeActual}, LBAfter=${lbAfterActual})`;
+          if (!failMsg && expected.lbDelta !== undefined) {
+            const delta = lbAfterActual - lbBeforeActual;
+            if (Math.abs(delta - expected.lbDelta) > 0.01) {
+              failMsg = `Delta expected +${expected.lbDelta}, got +${delta.toFixed(2)} (LBPra=${lbBeforeActual}, LBAfter=${lbAfterActual})`;
+            }
           }
-        }
-
-        if (!failMsg && expected.lbDeltaMin !== undefined) {
-          const delta = lbAfterActual - lbBeforeActual;
-          if (delta < expected.lbDeltaMin) {
-            failMsg = `Delta minimum ${expected.lbDeltaMin} tidak terpenuhi: delta=${delta}`;
+          if (!failMsg && expected.lbDeltaMin !== undefined) {
+            const delta = lbAfterActual - lbBeforeActual;
+            if (delta < expected.lbDeltaMin) {
+              failMsg = `Delta minimum ${expected.lbDeltaMin} tidak terpenuhi: delta=${delta}`;
+            }
           }
-        }
 
-        result = failMsg
-          ? { id: scenario.id, status: 'fail', message: failMsg, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected }
-          : { id: scenario.id, status: 'pass', message: 'Semua validasi lolos ✓', before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+          result = failMsg
+            ? { id: scenario.id, status: 'fail', message: failMsg, before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected }
+            : { id: scenario.id, status: 'pass', message: 'Semua validasi lolos ✓', before, after, fnRow: fnRow as unknown as Record<string, unknown> | null, expected };
+        }
       }
 
       results.push(result);
@@ -432,10 +496,15 @@ export async function POST(req: NextRequest) {
 // GET /api/test/run-cori → return scenario list (no DB)
 export async function GET() {
   return NextResponse.json(
-    CORI_SCENARIOS.map(({ id, category, emoji, name, description, expected }) => ({
-      id, category, emoji, name, description,
-      runDate: '(uses NOW() internally)',
-      expected,
-    }))
+    CORI_SCENARIOS.map(({ id, category, emoji, name, description, expected }) => {
+      const emp = CORI_TEST_EMPLOYEES.find(e => e.employeeNo === expected.employeeNo);
+      return {
+        id, category, emoji, name, description,
+        runDate: '(uses NOW() internally)',
+        employeeNo:   expected.employeeNo,
+        employeeName: emp?.fullName ?? expected.employeeNo,
+        expected,
+      };
+    })
   );
 }

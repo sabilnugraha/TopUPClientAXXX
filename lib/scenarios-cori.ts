@@ -159,13 +159,15 @@ export interface CoriScenarioExpected {
 }
 
 export interface CoriScenario {
-  id:          string;
-  category:    CoriCategory;
-  emoji:       string;
-  name:        string;
-  description: string;
-  setups:      CoriScenarioSetup[];
-  expected:    CoriScenarioExpected;
+  id:               string;
+  category:         CoriCategory;
+  emoji:            string;
+  name:             string;
+  description:      string;
+  setups:           CoriScenarioSetup[];
+  expected:         CoriScenarioExpected;
+  /** Run function twice: first run should give topup, second run should skip (true idempotency) */
+  runFunctionTwice?: boolean;
 }
 
 // ── Scenario List ──────────────────────────────────────────────────────────────
@@ -227,19 +229,14 @@ export const CORI_SCENARIOS: CoriScenario[] = [
   },
 
   {
-    id:          'cori_g12_idempotent',
-    category:    'GRANT12',
-    emoji:       '🔁',
-    name:        '12 Hari Cuti Tidak Diberikan Dua Kali — Sudah Diberikan Bulan Ini',
-    description: 'Jika 12 hari cuti anniversary sudah diberikan bulan ini, menjalankan ulang tidak akan menambah saldo lagi. Tidak ada dobel topup.',
-    setups: [{
-      employeeNo: 'TCORI-01', leaveCode: 'AL', lb: 12, lbb: 0,
-      preHistory: [{
-        leaveType: 'AL', actionType: 'GRANT12',
-        yearOffset: 0, periodMonth: 0,  // 0 = current month (computed in runner)
-        lbBefore: 0, lbbBefore: 0, lbAfter: 12, lbbAfter: 0,
-      }],
-    }],
+    id:               'cori_g12_idempotent',
+    category:         'GRANT12',
+    emoji:            '🔁',
+    name:             '12 Hari Cuti Tidak Diberikan Dua Kali — Sudah Diberikan Bulan Ini',
+    description:      'Jika 12 hari cuti anniversary sudah diberikan bulan ini, menjalankan ulang tidak akan menambah saldo lagi. Tidak ada dobel topup.',
+    runFunctionTwice: true,
+    // Run 1: function gives GRANT12 (LB 0→12). Run 2: guard blocks, no new record.
+    setups: [{ employeeNo: 'TCORI-01', leaveCode: 'AL', lb: 0, lbb: 0 }],
     expected: { employeeNo: 'TCORI-01', leaveType: 'AL', actionType: 'GRANT12', shouldNotExist: true },
   },
 
@@ -278,19 +275,14 @@ export const CORI_SCENARIOS: CoriScenario[] = [
   },
 
   {
-    id:          'cori_monthly_idempotent',
-    category:    'MONTHLY+1',
-    emoji:       '🔁',
-    name:        'Cuti Bulanan Tidak Diberikan Dua Kali — Sudah Diberikan Bulan Ini',
-    description: 'Jika tambahan cuti bulanan sudah diberikan bulan ini, menjalankan ulang tidak akan menambah saldo lagi.',
-    setups: [{
-      employeeNo: 'TCORI-07', leaveCode: 'AL', lb: 1, lbb: 0,
-      preHistory: [{
-        leaveType: 'AL', actionType: 'MONTHLY+1',
-        yearOffset: 0, periodMonth: 0,
-        lbBefore: 0, lbbBefore: 0, lbAfter: 1, lbbAfter: 0,
-      }],
-    }],
+    id:               'cori_monthly_idempotent',
+    category:         'MONTHLY+1',
+    emoji:            '🔁',
+    name:             'Cuti Bulanan Tidak Diberikan Dua Kali — Sudah Diberikan Bulan Ini',
+    description:      'Jika tambahan cuti bulanan sudah diberikan bulan ini, menjalankan ulang tidak akan menambah saldo lagi.',
+    runFunctionTwice: true,
+    // Run 1: function gives MONTHLY+1 (LB 0→1). Run 2: guard blocks, no new record.
+    setups: [{ employeeNo: 'TCORI-07', leaveCode: 'AL', lb: 0, lbb: 0 }],
     expected: { employeeNo: 'TCORI-07', leaveType: 'AL', actionType: 'MONTHLY+1', shouldNotExist: true },
   },
 
