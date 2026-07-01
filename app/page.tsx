@@ -403,6 +403,55 @@ function CoriTestTab() {
   );
 }
 
+// ── Panduan / Doc Viewer ──────────────────────────────────────────────────────
+function DocViewer({ docPath, children }: { docPath: string; children: React.ReactNode }) {
+  const [mode,   setMode]   = useState<'html'|'word'>('html');
+  const [origin, setOrigin] = useState('');
+
+  useEffect(() => { setOrigin(window.location.origin); }, []);
+
+  const isLocal   = origin.includes('localhost') || origin.includes('127.0.0.1');
+  const docUrl    = `${origin}${docPath}`;
+  const viewerUrl = `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(docUrl)}`;
+
+  return (
+    <div className="space-y-4">
+      {/* toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
+          <button
+            onClick={() => setMode('html')}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${mode==='html' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >Baca</button>
+          <button
+            onClick={() => setMode('word')}
+            disabled={isLocal}
+            title={isLocal ? 'Hanya tersedia setelah deploy (URL publik)' : undefined}
+            className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition disabled:opacity-40 disabled:cursor-not-allowed ${mode==='word' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'}`}
+          >Preview Word</button>
+        </div>
+        <a
+          href={docPath}
+          download
+          className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-white border border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+        >Download .docx</a>
+        {isLocal && mode==='html' && (
+          <span className="text-[11px] text-gray-400">Preview Word tersedia setelah deploy ke Vercel</span>
+        )}
+      </div>
+
+      {/* content */}
+      {mode === 'html' ? (
+        children
+      ) : (
+        <div className="rounded-2xl overflow-hidden border border-gray-100 shadow-sm" style={{ height:'80vh' }}>
+          <iframe src={viewerUrl} width="100%" height="100%" frameBorder="0" title="Word Preview" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Panduan Tab ───────────────────────────────────────────────────────────────
 function PanduanSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -436,6 +485,7 @@ function PanduanBadge({ label, color }: { label: string; color: string }) {
 
 function ApllPanduanTab() {
   return (
+    <DocViewer docPath="/docs/Panduan_Cuti_APLL.docx">
     <div className="space-y-8 max-w-3xl">
       <div>
         <h1 className="text-2xl font-black text-gray-900">Panduan Kebijakan Cuti</h1>
@@ -510,11 +560,13 @@ function ApllPanduanTab() {
         </PanduanNote>
       </Card>
     </div>
+    </DocViewer>
   );
 }
 
 function CoriPanduanTab() {
   return (
+    <DocViewer docPath="/docs/Panduan_Cuti_Corinthian.docx">
     <div className="space-y-8 max-w-3xl">
       <div>
         <h1 className="text-2xl font-black text-gray-900">Panduan Kebijakan Cuti</h1>
@@ -607,6 +659,7 @@ function CoriPanduanTab() {
         </PanduanNote>
       </Card>
     </div>
+    </DocViewer>
   );
 }
 
