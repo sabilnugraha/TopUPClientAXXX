@@ -54,20 +54,20 @@ const APLL_EMPTY: KaryawanForm = { CompanyCode:'APLL',EmployeeNo:'',FullName:'',
 const CORI_EMPTY: KaryawanForm = { CompanyCode:'CORI',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'C',ContractStartDate:'',EffectivePermanentDate:'' };
 
 const APLL_TABS: { id: Tab; label: string }[] = [
-  { id:'run',      label:'Run Topup'   },
-  { id:'karyawan', label:'Karyawan'    },
-  { id:'saldo',    label:'Saldo Leave' },
-  { id:'logs',     label:'Run Logs'    },
-  { id:'history',  label:'History'     },
-  { id:'test',     label:'Test'        },
+  { id:'run',      label:'Run Topup'        },
+  { id:'test',     label:'Automation Test'  },
+  { id:'karyawan', label:'Karyawan'         },
+  { id:'saldo',    label:'Saldo Leave'      },
+  { id:'logs',     label:'Run Logs'         },
+  { id:'history',  label:'History'          },
 ];
 const CORI_TABS: { id: Tab; label: string }[] = [
-  { id:'run',      label:'Run Topup'   },
-  { id:'karyawan', label:'Karyawan'    },
-  { id:'saldo',    label:'Saldo Leave' },
-  { id:'logs',     label:'Run Logs'    },
-  { id:'history',  label:'History'     },
-  { id:'test',     label:'Test'        },
+  { id:'run',      label:'Run Topup'        },
+  { id:'test',     label:'Automation Test'  },
+  { id:'karyawan', label:'Karyawan'         },
+  { id:'saldo',    label:'Saldo Leave'      },
+  { id:'logs',     label:'Run Logs'         },
+  { id:'history',  label:'History'          },
 ];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -273,7 +273,7 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-black text-gray-900">Test Scenarios</h1>
+          <h1 className="text-2xl font-black text-gray-900">Automation Test</h1>
           <p className="text-sm text-gray-400 mt-1">{total} skenario · otomatis setup, run, dan validasi</p>
           {noteText && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2 font-medium">{noteText}</p>}
         </div>
