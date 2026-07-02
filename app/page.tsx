@@ -405,7 +405,7 @@ function CoriTestTab() {
 
 // ── Panduan / Doc Viewer ──────────────────────────────────────────────────────
 function DocViewer({ docPath, children }: { docPath: string; children: React.ReactNode }) {
-  const [wordOpen, setWordOpen] = useState(false);
+  const [wordOpen, setWordOpen] = useState(true);
   const [origin,   setOrigin]   = useState('');
 
   useEffect(() => { setOrigin(window.location.origin); }, []);
@@ -580,7 +580,6 @@ function CoriPanduanTab() {
           <PanduanRule label="Karyawan Kontrak (C):">Dihitung dari Contract Start Date.</PanduanRule>
           <PanduanRule label="Karyawan Tetap (P):">Dihitung dari Effective Permanent Date.</PanduanRule>
           <PanduanRule label="Jumlah:">+12 hari AL sekaligus.</PanduanRule>
-          <PanduanRule label="Batas saldo:">Saldo AL tidak bisa melebihi 20 hari.</PanduanRule>
         </PanduanSection>
 
         <PanduanSection title="B. Penambahan Bulanan +1 Hari (MONTHLY+1)">
@@ -588,7 +587,6 @@ function CoriPanduanTab() {
           <PanduanRule label="Karyawan Kontrak (C):">Berlaku setelah 1 tahun dari Contract Start Date.</PanduanRule>
           <PanduanRule label="Karyawan Tetap (P):">Berlaku setelah 1 tahun dari Effective Permanent Date.</PanduanRule>
           <PanduanRule label="Jumlah:">+1 hari AL per bulan.</PanduanRule>
-          <PanduanRule label="Batas saldo:">Saldo AL tidak bisa melebihi 20 hari.</PanduanRule>
         </PanduanSection>
 
         <PanduanNote>
