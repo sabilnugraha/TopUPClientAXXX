@@ -37,9 +37,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Bulan harus 1–12' }, { status: 400 });
     }
 
-    await query(`SELECT public."TopUpLOGWINV2"($1::varchar, $2::int, $3::int)`, [
-      pCompany, pMonth, pYear,
-    ]);
+    // CompanyCode di-hardcode di dalam function, jadi param cuma bulan + tahun.
+    await query(`SELECT public."TopUpLOGWINV2"($1::int, $2::int)`, [pMonth, pYear]);
 
     const rows = await query<LogwRow>(
       `SELECT

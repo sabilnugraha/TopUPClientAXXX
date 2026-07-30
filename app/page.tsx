@@ -784,16 +784,15 @@ interface DistPivotRow {
   annual:        number;
 }
 
+// READ-ONLY — TmLeaveDistributionConfig adalah data statis. Tab ini hanya
+// menampilkan isinya; tidak ada tombol tambah/ubah/hapus, dan route API-nya
+// pun cuma menyediakan GET.
 function DistribusiTab() {
   const thisYear = new Date().getFullYear();
   const [pivot,    setPivot]    = useState<DistPivotRow[]>([]);
   const [years,    setYears]    = useState<number[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
-  const [editRow,  setEditRow]  = useState<DistPivotRow|null>(null);
-  const [editQty,  setEditQty]  = useState<string[]>(Array(12).fill('0'));
-  const [saving,   setSaving]   = useState(false);
-  const [saveErr,  setSaveErr]  = useState('');
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -808,48 +807,6 @@ function DistribusiTab() {
 
   useEffect(() => { load(); }, [load]);
 
-  const openEdit = (r: DistPivotRow) => {
-    setEditRow(r);
-    setEditQty(r.qty.map(String));
-    setSaveErr('');
-  };
-  const openNew = () => {
-    setEditRow({ effectiveYear: thisYear, levelCode: '', qty: Array(12).fill(0), active: Array(12).fill(true), annual: 0 });
-    setEditQty(Array(12).fill('0'));
-    setSaveErr('');
-  };
-
-  const save = async () => {
-    if (!editRow) return;
-    if (!editRow.levelCode.trim()) { setSaveErr('Kode level wajib diisi'); return; }
-    setSaving(true); setSaveErr('');
-    try {
-      const res = await fetch('/api/distribusi', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({
-          companyCode:   'LOGWIN',
-          leaveCode:     'AL',
-          effectiveYear: editRow.effectiveYear,
-          levelCode:     editRow.levelCode.trim().toUpperCase(),
-          qty:           editQty.map(v => Number(v) || 0),
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? 'Gagal menyimpan');
-      setEditRow(null);
-      await load();
-    } catch (e) { setSaveErr(e instanceof Error ? e.message : String(e)); }
-    finally { setSaving(false); }
-  };
-
-  const remove = async (r: DistPivotRow) => {
-    if (!confirm(`Hapus distribusi ${r.levelCode} tahun ${r.effectiveYear}?`)) return;
-    await fetch(`/api/distribusi?companyCode=LOGWIN&leaveCode=AL&effectiveYear=${r.effectiveYear}&levelCode=${encodeURIComponent(r.levelCode)}`, { method:'DELETE' });
-    await load();
-  };
-
-  const editAnnual = editQty.reduce((a, v) => a + (Number(v) || 0), 0);
   const missingPrevYear = years.length > 0 && !years.includes(thisYear - 1);
 
   return (
@@ -859,15 +816,15 @@ function DistribusiTab() {
           <h1 className="text-2xl font-black text-gray-900">Tabel Distribusi</h1>
           <p className="text-sm text-gray-400 mt-1">Jatah cuti per level per bulan — TmLeaveDistributionConfig · LOGWIN · AL</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg">Hanya baca</span>
           <Btn variant="ghost" size="sm" onClick={load} disabled={loading}>{loading?'Memuat…':'Muat Ulang'}</Btn>
-          <Btn variant="primary" onClick={openNew}>+ Tambah Level</Btn>
         </div>
       </div>
 
       {missingPrevYear && (
         <PanduanNote variant="red">
-          <strong>Tahun {thisYear - 1} belum terisi.</strong> Blok Q4 Carry membaca tabel distribusi tahun sebelumnya untuk melunasi jatah karyawan yang masuk Oktober–Desember. Tanpa data tahun {thisYear - 1}, mereka tidak akan menerima pelunasan apa pun.
+          <strong>Tahun {thisYear - 1} tidak ada di tabel.</strong> Blok Q4 Carry membaca distribusi tahun sebelumnya untuk melunasi jatah karyawan yang masuk Oktober–Desember {thisYear - 1}. Karena datanya tidak ada, pelunasan mereka dihitung 0 hari. Saldo yang sudah ada tetap aman — function punya pengaman supaya nilainya tidak berubah jadi kosong.
         </PanduanNote>
       )}
 
@@ -880,8 +837,8 @@ function DistribusiTab() {
 
       {!loading && !error && pivot.length === 0 && (
         <Card className="p-8 flex flex-col items-center justify-center text-center text-gray-300">
-          <div className="text-sm font-medium">Belum ada tabel distribusi</div>
-          <div className="text-xs mt-1">Klik Tambah Level untuk mulai, atau jalankan Setup di tab Automation Test</div>
+          <div className="text-sm font-medium">Tabel distribusi kosong</div>
+          <div className="text-xs mt-1">Data diisi langsung di database — tanpa ini, semua top-up menghasilkan 0</div>
         </Card>
       )}
 
@@ -896,8 +853,8 @@ function DistribusiTab() {
                   {MONTH_NAMES.map(mn => (
                     <th key={mn} className="px-2 py-2.5 text-center text-gray-400 uppercase text-[10px] tracking-wide">{mn}</th>
                   ))}
+                  <th className="px-3 py-2.5 text-center text-gray-400 uppercase text-[10px] tracking-wide">Rapel bln-4</th>
                   <th className="px-3 py-2.5 text-center text-gray-400 uppercase text-[10px] tracking-wide">Setahun</th>
-                  <th className="px-3 py-2.5" />
                 </tr>
               </thead>
               <tbody>
@@ -908,11 +865,10 @@ function DistribusiTab() {
                     {r.qty.map((q, i) => (
                       <td key={i} className={`px-2 py-2.5 text-center font-mono ${q>0?'text-gray-800':'text-gray-300'}`}>{q}</td>
                     ))}
-                    <td className="px-3 py-2.5 text-center font-black text-emerald-600">{r.annual}</td>
-                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                      <button onClick={()=>openEdit(r)} className="text-indigo-500 hover:underline font-semibold mr-3">Ubah</button>
-                      <button onClick={()=>remove(r)} className="text-red-400 hover:underline font-semibold">Hapus</button>
+                    <td className="px-3 py-2.5 text-center font-bold text-sky-600">
+                      {r.qty.slice(0,4).reduce((a,b)=>a+b,0)}
                     </td>
+                    <td className="px-3 py-2.5 text-center font-black text-emerald-600">{r.annual}</td>
                   </tr>
                 ))}
               </tbody>
@@ -926,54 +882,10 @@ function DistribusiTab() {
           <div className="font-bold text-gray-700 text-sm mb-2">Cara membaca tabel ini</div>
           <div>• Kolom bulan adalah <strong>urutan bulan sejak karyawan mulai dihitung</strong>, bukan bulan kalender. Untuk karyawan lama keduanya kebetulan sama.</div>
           <div>• Kolom <strong>Setahun</strong> dipakai sebagai dasar perhitungan plafon prorata.</div>
-          <div>• Empat kolom pertama menentukan besarnya rapel yang cair di bulan ke-4 bagi karyawan baru.</div>
-          <div>• Tahun sebelumnya harus ikut terisi, karena dipakai blok Q4 Carry.</div>
+          <div>• Kolom <strong>Rapel bln-4</strong> adalah jumlah empat bulan pertama — itulah yang cair sekaligus di bulan ke-4 bagi karyawan baru.</div>
+          <div>• Tabel ini <strong>hanya bisa dibaca dari sini</strong>. Perubahan dilakukan langsung di database.</div>
         </div>
       </Card>
-
-      {editRow && (
-        <Modal title={editRow.levelCode ? `Ubah Distribusi — ${editRow.levelCode} · ${editRow.effectiveYear}` : 'Tambah Level Baru'} onClose={()=>setEditRow(null)}>
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Kode Level" value={editRow.levelCode}
-                onChange={e=>setEditRow({...editRow, levelCode:e.target.value})}
-                placeholder="AM / HOD / MNG" />
-              <Input label="Tahun Berlaku" type="number" value={String(editRow.effectiveYear)}
-                onChange={e=>setEditRow({...editRow, effectiveYear:Number(e.target.value)||thisYear})} />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Jatah per Bulan</label>
-              <div className="grid grid-cols-6 gap-2">
-                {MONTH_NAMES.map((mn, i) => (
-                  <div key={mn}>
-                    <div className="text-[10px] text-gray-400 text-center mb-1 font-semibold">{mn}</div>
-                    <input type="number" min="0" value={editQty[i]}
-                      onChange={e=>{ const c=[...editQty]; c[i]=e.target.value; setEditQty(c); }}
-                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 focus:bg-white transition" />
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="bg-indigo-50 rounded-xl px-4 py-3 flex items-center justify-between">
-              <span className="text-xs font-semibold text-indigo-700">Total setahun</span>
-              <span className="text-lg font-black text-indigo-700">{editAnnual} hari</span>
-            </div>
-            <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-[11px] text-gray-500">
-              Rapel bulan ke-4 untuk karyawan baru: <strong className="text-gray-700">
-                {editQty.slice(0,4).reduce((a,v)=>a+(Number(v)||0),0)} hari
-              </strong> (jumlah empat kolom pertama)
-            </div>
-
-            {saveErr && <div className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 font-mono">{saveErr}</div>}
-            <div className="flex gap-2 pt-1">
-              <Btn variant="primary" className="flex-1" onClick={save} disabled={saving}>{saving?'Menyimpan…':'Simpan'}</Btn>
-              <Btn variant="ghost" onClick={()=>setEditRow(null)}>Batal</Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
     </div>
   );
 }

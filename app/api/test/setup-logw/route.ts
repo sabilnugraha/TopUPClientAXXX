@@ -2,13 +2,15 @@ import { NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 import {
   LOGW_COMPANY, LOGW_LEAVE_CODES, LOGW_LEVEL_TYPE,
-  LOGW_TEST_EMPLOYEES, distributionRows,
+  LOGW_TEST_EMPLOYEES,
 } from '@/lib/scenarios-logw';
 
 // POST /api/test/setup-logw
-// Creates LOGW test employees + PeMasterLevel + PeMasterLeave, and seeds
-// TmLeaveDistributionConfig for the current year AND the previous year
-// (the previous year is required by the Q4 Carry block).
+// Creates LOGW test employees + PeMasterLevel + PeMasterLeave.
+//
+// PENTING: TmLeaveDistributionConfig adalah DATA STATIS milik user — setup ini
+// TIDAK PERNAH menulis/menghapus apa pun di tabel itu. Isinya hanya dibaca untuk
+// dilaporkan balik, supaya kelihatan tahun mana saja yang tersedia.
 export async function POST() {
   try {
     const year     = new Date().getFullYear();
@@ -17,27 +19,18 @@ export async function POST() {
     let empCreated   = 0;
     let levelCreated = 0;
     let leaveCreated = 0;
-    let distCreated  = 0;
 
-    // ── 1. Distribution config (current + previous year) ────────────────────
-    // Wipe then re-insert so re-running setup always yields a known state.
-    await query(
-      `DELETE FROM "TmLeaveDistributionConfig"
-       WHERE "CompanyCode" = $1 AND "LeaveCode" = $2 AND "EffectiveYear" = ANY($3::int[])`,
-      [LOGW_COMPANY, 'AL', [year, prevYear]]
+    // ── 1. Cek distribusi (read-only) ────────────────────────────────────────
+    const distRows = await query<{ EffectiveYear: number; cnt: string }>(
+      `SELECT "EffectiveYear", COUNT(*)::text AS cnt
+       FROM "TmLeaveDistributionConfig"
+       WHERE "CompanyCode" = $1 AND "LeaveCode" = 'AL'
+       GROUP BY "EffectiveYear" ORDER BY "EffectiveYear"`,
+      [LOGW_COMPANY]
     );
-
-    for (const effYear of [prevYear, year]) {
-      for (const d of distributionRows(effYear)) {
-        await query(
-          `INSERT INTO "TmLeaveDistributionConfig"
-             ("CompanyCode","LeaveCode","EffectiveYear","LevelCode","MonthIndex","Qty","IsActive")
-           VALUES ($1,$2,$3,$4,$5,$6,true)`,
-          [LOGW_COMPANY, 'AL', d.effectiveYear, d.levelCode, d.monthIndex, d.qty]
-        );
-        distCreated++;
-      }
-    }
+    const distYears  = distRows.map((r) => Number(r.EffectiveYear));
+    const hasCurYear = distYears.includes(year);
+    const hasPrevYr  = distYears.includes(prevYear);
 
     // ── 2. Employees ─────────────────────────────────────────────────────────
     for (const emp of LOGW_TEST_EMPLOYEES) {
@@ -111,16 +104,30 @@ export async function POST() {
       }
     }
 
+    const warnings: string[] = [];
+    if (!hasCurYear) {
+      warnings.push(
+        `Tabel distribusi tahun ${year} tidak ditemukan — semua top-up akan menghasilkan 0.`
+      );
+    }
+    if (!hasPrevYr) {
+      warnings.push(
+        `Tabel distribusi tahun ${prevYear} tidak ada — Q4 Carry tidak bisa membayar tunggakan ` +
+        `karyawan yang masuk Okt–Des ${prevYear} (nilainya jadi 0).`
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       employees:    empCreated,
       levels:       levelCreated,
       leaveRecords: leaveCreated,
-      distConfig:   distCreated,
-      years:        [prevYear, year],
+      distYears,
+      warnings,
       message:
-        `${empCreated} karyawan test LOGW siap, ${leaveCreated} saldo cuti, ` +
-        `${distCreated} baris distribusi (${prevYear} & ${year})`,
+        `${empCreated} karyawan test LOGWIN siap, ${leaveCreated} saldo cuti. ` +
+        `Tabel distribusi tidak disentuh (tahun tersedia: ${distYears.join(', ') || 'tidak ada'})` +
+        (warnings.length ? ` — ${warnings.join(' ')}` : ''),
     });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });

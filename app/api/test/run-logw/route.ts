@@ -68,10 +68,9 @@ async function readHistory(employeeNo: string, year: number) {
 }
 
 async function runMonths(months: number[], year: number) {
+  // CompanyCode di-hardcode di dalam function, jadi param cuma bulan + tahun.
   for (const mo of months) {
-    await query(`SELECT public."TopUpLOGWINV2"($1::varchar, $2::int, $3::int)`, [
-      LOGW_COMPANY, mo, year,
-    ]);
+    await query(`SELECT public."TopUpLOGWINV2"($1::int, $2::int)`, [mo, year]);
   }
 }
 
@@ -114,6 +113,16 @@ async function runScenario(sc: LogwScenario, year: number): Promise<ScenarioResu
   const fail = (message: string): ScenarioResult => ({
     id: sc.id, status: 'fail', message, before, after, fnRow, expected: sc.expected,
   });
+
+  // 0. Saldo tidak boleh berubah jadi NULL.
+  //    Ini yang dijaga oleh COALESCE di blok Q4 Carry — kalau tabel distribusi
+  //    tahun sebelumnya kosong, CarryQty bisa NULL dan menular ke saldo.
+  if (after && (after.LeaveBalance === null || after.LeaveBalanceBefore === null)) {
+    return fail(
+      'Saldo berubah menjadi kosong (NULL) setelah proses — seharusnya tetap berupa angka. ' +
+      'Cek pengaman COALESCE di blok Q4 Carry.'
+    );
+  }
 
   // 1. Duplicate guard — one TOPUP row per month, max
   const seen = new Set<number>();

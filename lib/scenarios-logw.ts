@@ -21,32 +21,36 @@ export const LOGW_COMPANY     = 'LOGWIN';
 export const LOGW_LEAVE_CODES = ['AL'] as const;
 export const LOGW_LEVEL_TYPE  = '3';
 
-// ── Distribution config ───────────────────────────────────────────────────────
-// Qty per MonthIndex. AnnualQty = jumlah seluruh baris.
+// ── Distribution config (REFERENSI SAJA — TIDAK DITULIS KE DB) ────────────────
+// TmLeaveDistributionConfig adalah data statis milik user. Konstanta di bawah
+// hanya cerminan isi DB untuk EffectiveYear 2026, dipakai sebagai dasar
+// menghitung angka ekspektasi di skenario test. Setup test TIDAK PERNAH
+// menulis atau menghapus apa pun di tabel itu.
+//
+// Qty per MonthIndex, AnnualQty = jumlah seluruh baris:
 //   AM  : 3,2,2,2,2,2,2,2,2,2,2,2  → 25
+//   DIR : 3,2,2,2,2,2,2,2,2,2,2,2  → 25
 //   HOD : 2,2,2,2,1,1,1,1,1,1,1,1  → 16
 //   MNG : 2,2,2,2,2,2,2,2,1,1,1,1  → 20
+//   OPR : 1,1,1,1,1,1,1,1,1,1,1,1  → 12
+//   OS  : 1,1,1,1,1,1,1,1,1,1,1,1  → 12
+//
+// CATATAN PENTING: di DB hanya ada EffectiveYear 2026. Tahun 2025 tidak ada,
+// sehingga blok Q4 Carry tidak punya dasar perhitungan dan hasilnya 0 hari.
+// Skenario logw_q4_carry_november menguji persis kondisi itu.
 export const LOGW_DISTRIBUTION: Record<string, number[]> = {
   AM:  [3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
+  DIR: [3, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2],
   HOD: [2, 2, 2, 2, 1, 1, 1, 1, 1, 1, 1, 1],
   MNG: [2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1],
+  OPR: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+  OS:  [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
 };
 
 export const LOGW_LEVELS = Object.keys(LOGW_DISTRIBUTION);
 
 export function annualQty(levelCode: string): number {
   return (LOGW_DISTRIBUTION[levelCode] ?? []).reduce((a, b) => a + b, 0);
-}
-
-/** Flatten distribution into DB rows for a given effective year */
-export function distributionRows(effectiveYear: number) {
-  const rows: { levelCode: string; monthIndex: number; qty: number; effectiveYear: number }[] = [];
-  for (const [levelCode, qtys] of Object.entries(LOGW_DISTRIBUTION)) {
-    qtys.forEach((qty, i) => {
-      rows.push({ levelCode, monthIndex: i + 1, qty, effectiveYear });
-    });
-  }
-  return rows;
 }
 
 // ── Test Employee Definitions ─────────────────────────────────────────────────
@@ -285,11 +289,13 @@ export const LOGW_SCENARIOS: LogwScenario[] = [
     id:          'logw_q4_carry_november',
     category:    'Q4 CARRY',
     emoji:       '🔄',
-    name:        'HOD Join 5 November Tahun Lalu — Tunggakan Dibayar Tahun Ini',
+    name:        'HOD Join 5 November Tahun Lalu — Tunggakan Tidak Terbayar (Distribusi Tahun Lalu Kosong)',
     description:
-      'Karyawan yang masuk November tahun lalu tidak sempat mencapai bulan ke-4 sebelum ' +
-      'tahun berakhir, sehingga jatah 2 bulan kerjanya nyangkut. Q4 Carry melunasinya ' +
-      'di awal tahun ini sebesar 3 hari, masuk ke kantong carry-over dengan masa berlaku 31 Maret.',
+      'Karyawan yang masuk November tahun lalu tidak sempat mencapai bulan ke-4 sebelum tahun ' +
+      'berakhir, sehingga jatahnya nyangkut dan seharusnya dilunasi lewat Q4 Carry. Tapi Q4 Carry ' +
+      'menghitung berdasarkan tabel distribusi TAHUN SEBELUMNYA, dan tahun itu tidak ada di database — ' +
+      'jadi pelunasannya keluar 0 hari. Yang diuji di sini: pengaman di function bekerja, sehingga ' +
+      'saldo carry-over tetap berupa angka dan tidak berubah menjadi kosong.',
     employeeNo:  'TLOGW-07',
     runMonths:   [1],
     initialLb:   0,
@@ -298,7 +304,7 @@ export const LOGW_SCENARIOS: LogwScenario[] = [
       prorateQty: 16,
       monthly: m([1,2]),
       total: 2,
-      q4Carry: 3,
+      q4Carry: 0,
     },
   },
   {
