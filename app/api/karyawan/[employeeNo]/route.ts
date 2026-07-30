@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 const CORI_COMPANIES = ['CORI', 'CII'];
+const LOGW_COMPANIES = ['LOGW'];
 
 // GET /api/karyawan/:employeeNo?companyCode=
 export async function GET(
@@ -31,9 +32,11 @@ export async function PUT(
     const {
       CompanyCode, FullName, JoinDate, Gender, RecordStatus,
       EmploymentStatus, ContractStartDate, EffectivePermanentDate,
+      LevelCode,
     } = body;
 
     const isCori = CORI_COMPANIES.includes(CompanyCode);
+    const isLogw = LOGW_COMPANIES.includes(CompanyCode);
 
     if (isCori) {
       await query(
@@ -58,6 +61,16 @@ export async function PUT(
       );
     }
 
+    if (isLogw && LevelCode) {
+      await query(
+        `INSERT INTO "PeMasterLevel"("CompanyCode","EmployeeNo","LevelType","LevelCode")
+         VALUES ($1,$2,'3',$3)
+         ON CONFLICT ("CompanyCode","EmployeeNo","LevelType") DO UPDATE SET
+           "LevelCode" = EXCLUDED."LevelCode"`,
+        [CompanyCode, params.employeeNo, LevelCode]
+      );
+    }
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     return NextResponse.json({ error: String(err) }, { status: 500 });
@@ -75,6 +88,7 @@ export async function DELETE(
     await query(`DELETE FROM "HistoryTopUpLeaves" WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
     await query(`DELETE FROM "LeaveTopUpRunDetail"  WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
     await query(`DELETE FROM "PeMasterLeave"         WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
+    await query(`DELETE FROM "PeMasterLevel"         WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
     await query(`DELETE FROM "PeMaster"              WHERE "CompanyCode"=$1 AND "EmployeeNo"=$2`, [companyCode, employeeNo]);
     return NextResponse.json({ ok: true });
   } catch (err) {

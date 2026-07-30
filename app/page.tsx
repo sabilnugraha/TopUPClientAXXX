@@ -7,8 +7,8 @@ type DbValue      = string | number | boolean | null | undefined;
 type RunRow       = Record<string, DbValue>;
 type HistRow      = Record<string, DbValue>;
 type DetailRow    = Record<string, DbValue>;
-type CompanyGroup = 'APLL' | 'CORI';
-type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test' | 'fungsi' | 'panduan';
+type CompanyGroup = 'APLL' | 'CORI' | 'LOGW';
+type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test' | 'fungsi' | 'panduan' | 'distribusi';
 
 interface LeaveBalanceRow {
   CompanyCode:        string;
@@ -32,6 +32,7 @@ interface KaryawanForm {
   EmploymentStatus:       string;
   ContractStartDate:      string;
   EffectivePermanentDate: string;
+  LevelCode?:             string;
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -45,13 +46,20 @@ const APLL_LEAVE_DESC: Record<string, string> = {
 const CORI_LEAVE_DESC: Record<string, string> = {
   'AL': 'Cuti Tahunan', 'CI': 'Service Award 5 Tahun',
 };
-const ALL_LEAVE_DESC = { ...APLL_LEAVE_DESC, ...CORI_LEAVE_DESC };
+const LOGW_LEAVE_DESC: Record<string, string> = {
+  'AL': 'Cuti Tahunan',
+};
+const ALL_LEAVE_DESC = { ...APLL_LEAVE_DESC, ...CORI_LEAVE_DESC, ...LOGW_LEAVE_DESC };
 
 const APLL_LEAVE_CODES = ['','AL','PH','HAID','KHITAN/BABTIS_ANAK','ISTRI_MELAHIRKAN','ML','KELUARGA_MENINGGAL','MELAHIRKAN','MENIKAHKAN_ANAK','KEGUGURAN','ISTRI_KEGUGURAN'];
 const CORI_LEAVE_CODES = ['','AL','CI'];
+const LOGW_LEAVE_CODES = ['','AL'];
 
 const APLL_EMPTY: KaryawanForm = { CompanyCode:'APLL',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'',ContractStartDate:'',EffectivePermanentDate:'' };
 const CORI_EMPTY: KaryawanForm = { CompanyCode:'CORI',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'C',ContractStartDate:'',EffectivePermanentDate:'' };
+const LOGW_EMPTY: KaryawanForm = { CompanyCode:'LOGW',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'',ContractStartDate:'',EffectivePermanentDate:'',LevelCode:'AM' };
+
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
 
 const APLL_TABS: { id: Tab; label: string }[] = [
   { id:'run',      label:'Run Topup'        },
@@ -73,6 +81,16 @@ const CORI_TABS: { id: Tab; label: string }[] = [
   { id:'panduan',  label:'Dokumentasi'       },
   { id:'fungsi',   label:'SQL Function'     },
 ];
+const LOGW_TABS: { id: Tab; label: string }[] = [
+  { id:'run',        label:'Run Topup'       },
+  { id:'test',       label:'Automation Test' },
+  { id:'distribusi', label:'Tabel Distribusi'},
+  { id:'karyawan',   label:'Karyawan'        },
+  { id:'saldo',      label:'Saldo Leave'     },
+  { id:'history',    label:'History'         },
+  { id:'panduan',    label:'Dokumentasi'     },
+  { id:'fungsi',     label:'SQL Function'    },
+];
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function actionColor(action: string) {
@@ -83,6 +101,8 @@ function actionColor(action: string) {
     '5years':'bg-emerald-100 text-emerald-700', GRANT12:'bg-teal-100 text-teal-700',
     'MONTHLY+1':'bg-cyan-100 text-cyan-700', CI_5YEARS:'bg-emerald-100 text-emerald-700',
     GRANT12_CAPPED:'bg-amber-100 text-amber-700', MONTHLY1_CAPPED:'bg-amber-100 text-amber-700',
+    ROLLOVER:'bg-violet-100 text-violet-700', Q4_CARRY:'bg-sky-100 text-sky-700',
+    CLEAR_APR:'bg-orange-100 text-orange-700',
   };
   return m[action] ?? 'bg-gray-100 text-gray-600';
 }
@@ -177,6 +197,11 @@ const CAT_COLOR: Record<string,string> = {
   GRANT12:'bg-teal-100 text-teal-700', 'MONTHLY+1':'bg-cyan-100 text-cyan-700',
   CI_5YEARS:'bg-emerald-100 text-emerald-700', EDGE:'bg-gray-100 text-gray-600',
   GRANT12_CAPPED:'bg-amber-100 text-amber-700', MONTHLY1_CAPPED:'bg-amber-100 text-amber-700',
+  // LOGW
+  'HOLD+RAPEL':'bg-teal-100 text-teal-700',   PRORATA:'bg-amber-100 text-amber-700',
+  TGL15:'bg-sky-100 text-sky-700',            'KARYAWAN LAMA':'bg-indigo-100 text-indigo-700',
+  'Q4 CARRY':'bg-violet-100 text-violet-700', ROLLOVER:'bg-purple-100 text-purple-700',
+  'CLEAR APR':'bg-orange-100 text-orange-700',IDEMPOTENT:'bg-gray-100 text-gray-600',
 };
 
 interface GenericTestTabProps {
@@ -401,6 +426,18 @@ function CoriTestTab() {
       setupConfirmLabel="Hapus semua data karyawan test CORI/CII (TCORI-*)?"
       accentVariant="success"
       noteText="CORI function menggunakan NOW() — test hanya valid jika tanggal karyawan sesuai bulan ini"
+    />
+  );
+}
+function LogwTestTab() {
+  return (
+    <GenericTestTab
+      runApi="/api/test/run-logw"
+      setupApi="/api/test/setup-logw"
+      cleanupApi="/api/test/cleanup-logw"
+      setupConfirmLabel="Buat ulang karyawan test LOGW (TLOGW-*) + tabel distribusi?"
+      accentVariant="primary"
+      noteText="Tiap skenario mensimulasikan satu tahun penuh — function dijalankan bulan per bulan, lalu hasilnya dicocokkan"
     />
   );
 }
@@ -664,6 +701,283 @@ function CoriPanduanTab() {
   );
 }
 
+// ── LOGW Panduan ──────────────────────────────────────────────────────────────
+function LogwPanduanTab() {
+  return (
+    <div className="space-y-6">
+      <div>
+        <h1 className="text-2xl font-black text-gray-900">Panduan Cuti LOGW</h1>
+        <p className="text-sm text-gray-400 mt-1">Aturan perhitungan cuti tahunan — TopUpLOGWINV2</p>
+      </div>
+
+      <Card className="p-6 space-y-5">
+        <PanduanSection title="Titik Mulai Perhitungan">
+          <PanduanRule label="Tanggal 1–15:">Perhitungan dimulai dari tanggal 1 bulan itu juga. Contoh: masuk 10 Maret, mulai dihitung 1 Maret.</PanduanRule>
+          <PanduanRule label="Tanggal 16 ke atas:">Perhitungan mundur ke tanggal 1 bulan berikutnya. Contoh: masuk 20 Agustus, mulai dihitung 1 September.</PanduanRule>
+          <PanduanNote variant="indigo">
+            Selisih satu hari di tanggal masuk bisa mengubah jatah setahun cukup besar. Karyawan level AM yang masuk 1 Agustus mendapat 10 hari, sedangkan yang masuk 20 Agustus hanya 8 hari.
+          </PanduanNote>
+        </PanduanSection>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <PanduanSection title="Masa Tahan 3 Bulan dan Rapel">
+          <PanduanRule label="Bulan ke-1 sampai ke-3:">Karyawan baru belum menerima saldo cuti sama sekali.</PanduanRule>
+          <PanduanRule label="Bulan ke-4:">Saldo keluar sekaligus, mencakup jatah bulan ke-1 sampai ke-4 yang tertahan.</PanduanRule>
+          <PanduanRule label="Bulan ke-5 dan seterusnya:">Berjalan normal, satu jatah bulanan sesuai tabel distribusi.</PanduanRule>
+          <PanduanRule label="Karyawan lama:">Tidak kena masa tahan. Sejak Januari langsung menerima jatah bulanan, dan urutan bulannya mengikuti bulan kalender.</PanduanRule>
+        </PanduanSection>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <PanduanSection title="Plafon Prorata">
+          <div className="bg-gray-50 rounded-xl px-4 py-3 font-mono text-xs text-gray-700 space-y-1">
+            <div>Bulan Berhak = 12 − bulan(Titik Mulai) + 1</div>
+            <div>Plafon       = PEMBULATAN( Bulan Berhak × Jatah Setahun ÷ 12 )</div>
+          </div>
+          <PanduanRule label="Fungsinya:">Membatasi total cuti setahun. Tabel distribusi menentukan ritme pencairan per bulan, plafon menentukan totalnya tidak boleh terlampaui.</PanduanRule>
+          <PanduanRule label="Kalau tabrakan:">Jatah bulan berjalan dipotong sampai pas di plafon. Bulan-bulan berikutnya tidak mendapat tambahan lagi.</PanduanRule>
+          <PanduanRule label="Karyawan lama:">Bulan Berhak otomatis 12, sehingga plafonnya sama dengan jatah setahun penuh.</PanduanRule>
+          <PanduanNote>
+            <strong>Pembulatan:</strong> Nilai 0,5 dibulatkan ke atas. Contoh: 12,5 menjadi 13.
+          </PanduanNote>
+        </PanduanSection>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <PanduanSection title="Q4 Carry — Pelunasan Tunggakan">
+          <PanduanRule label="Siapa yang kena:">Karyawan yang masuk Oktober, November, atau Desember tahun lalu.</PanduanRule>
+          <PanduanRule label="Kenapa:">Mereka kehabisan tahun sebelum sempat mencapai bulan ke-4, sehingga jatah tahun itu tidak pernah cair. Karyawan yang masuk September masih sempat menerima rapelnya di Desember, jadi tidak termasuk.</PanduanRule>
+          <PanduanRule label="Berapa:">Sama dengan plafon prorata tahun lalu, dihitung memakai tabel distribusi tahun lalu.</PanduanRule>
+          <PanduanRule label="Masuk ke mana:">Kantong carry-over (saldo tahun lalu), dengan masa berlaku sampai 31 Maret. Diberikan sekali saja per tahun.</PanduanRule>
+          <PanduanNote variant="red">
+            <strong>Wajib diperhatikan:</strong> Q4 Carry membaca tabel distribusi <strong>tahun sebelumnya</strong>. Kalau tahun itu belum diisi, karyawan bersangkutan tidak menerima pelunasan apa pun. Pastikan tabel distribusi terisi untuk tahun berjalan dan tahun sebelumnya.
+          </PanduanNote>
+        </PanduanSection>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <PanduanSection title="Rollover Januari dan Clear April">
+          <PanduanRule label="Januari:">Sisa saldo tahun lalu dipindahkan ke kantong carry-over dengan masa berlaku 31 Maret, dan saldo tahun berjalan dimulai dari nol.</PanduanRule>
+          <PanduanRule label="April:">Sisa carry-over yang belum terpakai dihapus. Saldo tahun berjalan tidak ikut terhapus.</PanduanRule>
+        </PanduanSection>
+      </Card>
+
+      <Card className="p-6 space-y-5">
+        <PanduanSection title="Catatan Operasional">
+          <PanduanRule label="Jalankan tiap bulan:">Proses ini membayar jatah bulan berjalan saja, tidak ada mekanisme susulan otomatis. Bulan yang tidak pernah dijalankan berarti tidak pernah dibayar.</PanduanRule>
+          <PanduanRule label="Urutan bebas:">Bulan yang terlewat masih bisa dijalankan susulan kapan saja. Plafon prorata menjaga totalnya tetap benar meskipun urutannya tidak berurutan.</PanduanRule>
+          <PanduanRule label="Aman dijalankan ulang:">Menjalankan proses dua kali untuk periode yang sama tidak menambah saldo dobel.</PanduanRule>
+          <PanduanRule label="Level wajib terisi:">Karyawan harus punya data level (LevelType 3). Tanpa itu, karyawan tidak akan pernah ikut terproses.</PanduanRule>
+        </PanduanSection>
+      </Card>
+    </div>
+  );
+}
+
+// ── Distribusi Tab ────────────────────────────────────────────────────────────
+interface DistPivotRow {
+  effectiveYear: number;
+  levelCode:     string;
+  qty:           number[];
+  active:        boolean[];
+  annual:        number;
+}
+
+function DistribusiTab() {
+  const thisYear = new Date().getFullYear();
+  const [pivot,    setPivot]    = useState<DistPivotRow[]>([]);
+  const [years,    setYears]    = useState<number[]>([]);
+  const [loading,  setLoading]  = useState(false);
+  const [error,    setError]    = useState('');
+  const [editRow,  setEditRow]  = useState<DistPivotRow|null>(null);
+  const [editQty,  setEditQty]  = useState<string[]>(Array(12).fill('0'));
+  const [saving,   setSaving]   = useState(false);
+  const [saveErr,  setSaveErr]  = useState('');
+
+  const load = useCallback(async () => {
+    setLoading(true); setError('');
+    try {
+      const res  = await fetch('/api/distribusi?companyCode=LOGW&leaveCode=AL');
+      const data = await res.json();
+      if (data.error) { setError(data.error); setPivot([]); }
+      else { setPivot(data.pivot ?? []); setYears(data.years ?? []); }
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const openEdit = (r: DistPivotRow) => {
+    setEditRow(r);
+    setEditQty(r.qty.map(String));
+    setSaveErr('');
+  };
+  const openNew = () => {
+    setEditRow({ effectiveYear: thisYear, levelCode: '', qty: Array(12).fill(0), active: Array(12).fill(true), annual: 0 });
+    setEditQty(Array(12).fill('0'));
+    setSaveErr('');
+  };
+
+  const save = async () => {
+    if (!editRow) return;
+    if (!editRow.levelCode.trim()) { setSaveErr('Kode level wajib diisi'); return; }
+    setSaving(true); setSaveErr('');
+    try {
+      const res = await fetch('/api/distribusi', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({
+          companyCode:   'LOGW',
+          leaveCode:     'AL',
+          effectiveYear: editRow.effectiveYear,
+          levelCode:     editRow.levelCode.trim().toUpperCase(),
+          qty:           editQty.map(v => Number(v) || 0),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Gagal menyimpan');
+      setEditRow(null);
+      await load();
+    } catch (e) { setSaveErr(e instanceof Error ? e.message : String(e)); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (r: DistPivotRow) => {
+    if (!confirm(`Hapus distribusi ${r.levelCode} tahun ${r.effectiveYear}?`)) return;
+    await fetch(`/api/distribusi?companyCode=LOGW&leaveCode=AL&effectiveYear=${r.effectiveYear}&levelCode=${encodeURIComponent(r.levelCode)}`, { method:'DELETE' });
+    await load();
+  };
+
+  const editAnnual = editQty.reduce((a, v) => a + (Number(v) || 0), 0);
+  const missingPrevYear = years.length > 0 && !years.includes(thisYear - 1);
+
+  return (
+    <div className="space-y-5">
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-black text-gray-900">Tabel Distribusi</h1>
+          <p className="text-sm text-gray-400 mt-1">Jatah cuti per level per bulan — TmLeaveDistributionConfig · LOGW · AL</p>
+        </div>
+        <div className="flex gap-2">
+          <Btn variant="ghost" size="sm" onClick={load} disabled={loading}>{loading?'Memuat…':'Muat Ulang'}</Btn>
+          <Btn variant="primary" onClick={openNew}>+ Tambah Level</Btn>
+        </div>
+      </div>
+
+      {missingPrevYear && (
+        <PanduanNote variant="red">
+          <strong>Tahun {thisYear - 1} belum terisi.</strong> Blok Q4 Carry membaca tabel distribusi tahun sebelumnya untuk melunasi jatah karyawan yang masuk Oktober–Desember. Tanpa data tahun {thisYear - 1}, mereka tidak akan menerima pelunasan apa pun.
+        </PanduanNote>
+      )}
+
+      {error && (
+        <Card className="p-5 border-red-100 bg-red-50">
+          <div className="font-semibold text-red-700 text-sm mb-1">Gagal memuat</div>
+          <div className="text-xs text-red-600 font-mono">{error}</div>
+        </Card>
+      )}
+
+      {!loading && !error && pivot.length === 0 && (
+        <Card className="p-8 flex flex-col items-center justify-center text-center text-gray-300">
+          <div className="text-sm font-medium">Belum ada tabel distribusi</div>
+          <div className="text-xs mt-1">Klik Tambah Level untuk mulai, atau jalankan Setup di tab Automation Test</div>
+        </Card>
+      )}
+
+      {pivot.length > 0 && (
+        <Card className="overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-3 py-2.5 text-left text-gray-400 uppercase text-[10px] tracking-wide">Tahun</th>
+                  <th className="px-3 py-2.5 text-left text-gray-400 uppercase text-[10px] tracking-wide">Level</th>
+                  {MONTH_NAMES.map(mn => (
+                    <th key={mn} className="px-2 py-2.5 text-center text-gray-400 uppercase text-[10px] tracking-wide">{mn}</th>
+                  ))}
+                  <th className="px-3 py-2.5 text-center text-gray-400 uppercase text-[10px] tracking-wide">Setahun</th>
+                  <th className="px-3 py-2.5" />
+                </tr>
+              </thead>
+              <tbody>
+                {pivot.map((r) => (
+                  <tr key={`${r.effectiveYear}-${r.levelCode}`} className="border-t border-gray-50 hover:bg-gray-50">
+                    <td className="px-3 py-2.5 font-mono text-gray-500">{r.effectiveYear}</td>
+                    <td className="px-3 py-2.5 font-bold text-indigo-600">{r.levelCode}</td>
+                    {r.qty.map((q, i) => (
+                      <td key={i} className={`px-2 py-2.5 text-center font-mono ${q>0?'text-gray-800':'text-gray-300'}`}>{q}</td>
+                    ))}
+                    <td className="px-3 py-2.5 text-center font-black text-emerald-600">{r.annual}</td>
+                    <td className="px-3 py-2.5 text-right whitespace-nowrap">
+                      <button onClick={()=>openEdit(r)} className="text-indigo-500 hover:underline font-semibold mr-3">Ubah</button>
+                      <button onClick={()=>remove(r)} className="text-red-400 hover:underline font-semibold">Hapus</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      <Card className="p-5 bg-gray-50 border-gray-100">
+        <div className="text-xs text-gray-500 space-y-1.5">
+          <div className="font-bold text-gray-700 text-sm mb-2">Cara membaca tabel ini</div>
+          <div>• Kolom bulan adalah <strong>urutan bulan sejak karyawan mulai dihitung</strong>, bukan bulan kalender. Untuk karyawan lama keduanya kebetulan sama.</div>
+          <div>• Kolom <strong>Setahun</strong> dipakai sebagai dasar perhitungan plafon prorata.</div>
+          <div>• Empat kolom pertama menentukan besarnya rapel yang cair di bulan ke-4 bagi karyawan baru.</div>
+          <div>• Tahun sebelumnya harus ikut terisi, karena dipakai blok Q4 Carry.</div>
+        </div>
+      </Card>
+
+      {editRow && (
+        <Modal title={editRow.levelCode ? `Ubah Distribusi — ${editRow.levelCode} · ${editRow.effectiveYear}` : 'Tambah Level Baru'} onClose={()=>setEditRow(null)}>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <Input label="Kode Level" value={editRow.levelCode}
+                onChange={e=>setEditRow({...editRow, levelCode:e.target.value})}
+                placeholder="AM / HOD / MNG" />
+              <Input label="Tahun Berlaku" type="number" value={String(editRow.effectiveYear)}
+                onChange={e=>setEditRow({...editRow, effectiveYear:Number(e.target.value)||thisYear})} />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wide">Jatah per Bulan</label>
+              <div className="grid grid-cols-6 gap-2">
+                {MONTH_NAMES.map((mn, i) => (
+                  <div key={mn}>
+                    <div className="text-[10px] text-gray-400 text-center mb-1 font-semibold">{mn}</div>
+                    <input type="number" min="0" value={editQty[i]}
+                      onChange={e=>{ const c=[...editQty]; c[i]=e.target.value; setEditQty(c); }}
+                      className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm text-center font-mono focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 focus:bg-white transition" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-indigo-50 rounded-xl px-4 py-3 flex items-center justify-between">
+              <span className="text-xs font-semibold text-indigo-700">Total setahun</span>
+              <span className="text-lg font-black text-indigo-700">{editAnnual} hari</span>
+            </div>
+            <div className="bg-gray-50 rounded-xl px-4 py-2.5 text-[11px] text-gray-500">
+              Rapel bulan ke-4 untuk karyawan baru: <strong className="text-gray-700">
+                {editQty.slice(0,4).reduce((a,v)=>a+(Number(v)||0),0)} hari
+              </strong> (jumlah empat kolom pertama)
+            </div>
+
+            {saveErr && <div className="text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2 font-mono">{saveErr}</div>}
+            <div className="flex gap-2 pt-1">
+              <Btn variant="primary" className="flex-1" onClick={save} disabled={saving}>{saving?'Menyimpan…':'Simpan'}</Btn>
+              <Btn variant="ghost" onClick={()=>setEditRow(null)}>Batal</Btn>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
 // ── SQL Function Tab ──────────────────────────────────────────────────────────
 interface FunctionDefResponse {
   company:      string;
@@ -701,7 +1015,13 @@ function SqlFunctionTab({ company }: { company: CompanyGroup }) {
   };
 
   const isCori = company === 'CORI';
-  const accent = isCori ? 'from-emerald-500 to-teal-500' : 'from-indigo-500 to-violet-500';
+  const isLogw = company === 'LOGW';
+  const accent = isCori ? 'from-emerald-500 to-teal-500'
+               : isLogw ? 'from-sky-500 to-blue-600'
+               : 'from-indigo-500 to-violet-500';
+  const companyLabel = isCori ? 'Corinthian Group (CORI · CII)'
+                     : isLogw ? 'LOGW'
+                     : 'APLL';
 
   return (
     <div className="space-y-5">
@@ -709,7 +1029,7 @@ function SqlFunctionTab({ company }: { company: CompanyGroup }) {
         <div>
           <h1 className="text-2xl font-black text-gray-900">SQL Function</h1>
           <p className="text-sm text-gray-400 mt-1">
-            Definisi fungsi PostgreSQL — {isCori ? 'Corinthian Group (CORI · CII)' : 'APLL'}
+            Definisi fungsi PostgreSQL — {companyLabel}
           </p>
         </div>
         {data && (
@@ -779,7 +1099,7 @@ function Lobby({ onSelect }: { onSelect: (g: CompanyGroup) => void }) {
         <h1 className="text-3xl font-black text-gray-900">TopUp Leave</h1>
         <p className="text-gray-400 mt-2 text-sm">Pilih company group untuk mulai</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 w-full max-w-4xl">
         <button onClick={()=>onSelect('APLL')} className="group bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:border-indigo-200 hover:shadow-xl hover:shadow-indigo-50/50 transition-all text-left">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-white text-2xl font-black mb-5 group-hover:scale-105 transition-transform shadow-lg shadow-indigo-200">A</div>
           <div className="font-black text-gray-900 text-xl mb-1">APLL</div>
@@ -791,6 +1111,12 @@ function Lobby({ onSelect }: { onSelect: (g: CompanyGroup) => void }) {
           <div className="font-black text-gray-900 text-xl mb-1">Corinthian Group</div>
           <div className="text-sm text-gray-400 leading-relaxed">CORI · CII<br />fn_topup_AL_Corinthian_daily</div>
           <div className="mt-5 flex items-center gap-2 text-emerald-500 font-semibold text-sm">Masuk <span className="group-hover:translate-x-1 transition-transform inline-block">→</span></div>
+        </button>
+        <button onClick={()=>onSelect('LOGW')} className="group bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:border-sky-200 hover:shadow-xl hover:shadow-sky-50/50 transition-all text-left">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-2xl font-black mb-5 group-hover:scale-105 transition-transform shadow-lg shadow-sky-200">L</div>
+          <div className="font-black text-gray-900 text-xl mb-1">LOGW</div>
+          <div className="text-sm text-gray-400 leading-relaxed">Distribusi per level<br />TopUpLOGWINV2</div>
+          <div className="mt-5 flex items-center gap-2 text-sky-500 font-semibold text-sm">Masuk <span className="group-hover:translate-x-1 transition-transform inline-block">→</span></div>
         </button>
       </div>
     </div>
@@ -806,20 +1132,24 @@ export default function HomePage() {
   const [coriCompanyFilter, setCoriCompanyFilter] = useState<string>(''); // ''|'CORI'|'CII'
 
   const isCori         = companyGroup === 'CORI';
-  const activeTabs     = isCori ? CORI_TABS : APLL_TABS;
-  const activeLeaveCodes = isCori ? CORI_LEAVE_CODES : APLL_LEAVE_CODES;
-  const activeLeaveDesc  = isCori ? CORI_LEAVE_DESC  : APLL_LEAVE_DESC;
-  const groupGradient    = isCori ? 'from-emerald-500 to-teal-500'   : 'from-indigo-500 to-violet-500';
-  const groupShadow      = isCori ? 'shadow-emerald-200'              : 'shadow-indigo-200';
-  const groupLabel       = isCori ? 'Corinthian Group'                : 'APLL';
-  const groupSubLabel    = isCori ? 'CORI · CII · fn_topup_AL_Corinthian_daily' : 'APLL · fn_daily_topup_leave_apll';
+  const isLogw         = companyGroup === 'LOGW';
+  const activeTabs     = isCori ? CORI_TABS : isLogw ? LOGW_TABS : APLL_TABS;
+  const activeLeaveCodes = isCori ? CORI_LEAVE_CODES : isLogw ? LOGW_LEAVE_CODES : APLL_LEAVE_CODES;
+  const activeLeaveDesc  = isCori ? CORI_LEAVE_DESC  : isLogw ? LOGW_LEAVE_DESC  : APLL_LEAVE_DESC;
+  const groupGradient    = isCori ? 'from-emerald-500 to-teal-500' : isLogw ? 'from-sky-500 to-blue-600' : 'from-indigo-500 to-violet-500';
+  const groupShadow      = isCori ? 'shadow-emerald-200'           : isLogw ? 'shadow-sky-200'           : 'shadow-indigo-200';
+  const groupLabel       = isCori ? 'Corinthian Group'             : isLogw ? 'LOGW'                     : 'APLL';
+  const groupSubLabel    = isCori ? 'CORI · CII · fn_topup_AL_Corinthian_daily'
+                         : isLogw ? 'LOGW · TopUpLOGWINV2'
+                         : 'APLL · fn_daily_topup_leave_apll';
 
   // Build URLSearchParams for company-aware API calls
   const companyParams = useCallback((extra: Record<string,string> = {}) => {
     const p = new URLSearchParams(extra);
-    if (companyGroup === 'APLL')   p.set('companyCode',  'APLL');
-    else if (coriCompanyFilter)    p.set('companyCode',  coriCompanyFilter);
-    else                           p.set('companyGroup', 'CORI');
+    if (companyGroup === 'APLL')      p.set('companyCode',  'APLL');
+    else if (companyGroup === 'LOGW') p.set('companyCode',  'LOGW');
+    else if (coriCompanyFilter)       p.set('companyCode',  coriCompanyFilter);
+    else                              p.set('companyGroup', 'CORI');
     return p;
   }, [companyGroup, coriCompanyFilter]);
 
@@ -830,19 +1160,47 @@ export default function HomePage() {
   const [running,       setRunning]       = useState(false);
   const [runResult,     setRunResult]     = useState<{ runId:string; summary:Record<string,DbValue> }|null>(null);
   const [coriRunResult, setCoriRunResult] = useState<{ rows:Record<string,unknown>[]; summary:{GRANT12:number;MONTHLY1:number;CI5YEARS:number;Capped:number;Total:number} }|null>(null);
+  const [logwRunResult, setLogwRunResult] = useState<{ rows:Record<string,unknown>[]; periodMonth:number; periodYear:number; summary:{TOPUP:number;ROLLOVER:number;Q4_CARRY:number;CLEAR_APR:number;HariCair:number;Total:number} }|null>(null);
   const [runError,      setRunError]      = useState('');
 
+  // LOGW runs per-period (month + year), not per-date
+  const [logwMonth, setLogwMonth] = useState<number>(new Date().getMonth() + 1);
+  const [logwYear,  setLogwYear]  = useState<number>(new Date().getFullYear());
+
   const handleRun = useCallback(async () => {
-    setRunning(true); setRunError(''); setRunResult(null); setCoriRunResult(null);
+    setRunning(true); setRunError(''); setRunResult(null); setCoriRunResult(null); setLogwRunResult(null);
     try {
-      const endpoint = isCori ? '/api/run-topup-cori' : '/api/run-topup';
-      const res  = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(runDate?{date:runDate}:{}) });
+      const endpoint = isCori ? '/api/run-topup-cori' : isLogw ? '/api/run-topup-logw' : '/api/run-topup';
+      const body     = isLogw ? { month: logwMonth, year: logwYear } : (runDate ? { date: runDate } : {});
+      const res  = await fetch(endpoint, { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Unknown error');
-      if (isCori) setCoriRunResult(data); else setRunResult(data);
+      if (isCori)      setCoriRunResult(data);
+      else if (isLogw) setLogwRunResult(data);
+      else             setRunResult(data);
     } catch (e) { setRunError(e instanceof Error ? e.message : String(e)); }
     finally { setRunning(false); }
-  }, [runDate, isCori]);
+  }, [runDate, isCori, isLogw, logwMonth, logwYear]);
+
+  // Run every month Jan→Dec of the selected year, in order
+  const handleRunFullYear = useCallback(async () => {
+    setRunning(true); setRunError(''); setLogwRunResult(null);
+    try {
+      let last = null;
+      for (let mo = 1; mo <= 12; mo++) {
+        const res  = await fetch('/api/run-topup-logw', {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({ month: mo, year: logwYear }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? 'Unknown error');
+        last = data;
+      }
+      setLogwMonth(12);
+      setLogwRunResult(last);
+    } catch (e) { setRunError(e instanceof Error ? e.message : String(e)); }
+    finally { setRunning(false); }
+  }, [logwYear]);
 
   // ── Karyawan CRUD ─────────────────────────────────────────────────────────
   const [karyawanList,   setKaryawanList]   = useState<RunRow[]>([]);
@@ -910,7 +1268,7 @@ export default function HomePage() {
 
   useEffect(() => { if (tab === 'karyawan') loadKaryawan(); }, [tab, loadKaryawan]);
 
-  const openCreate = () => { setForm(isCori ? {...CORI_EMPTY} : {...APLL_EMPTY}); setEditMode(false); setFormErr(''); setShowModal(true); };
+  const openCreate = () => { setForm(isCori ? {...CORI_EMPTY} : isLogw ? {...LOGW_EMPTY} : {...APLL_EMPTY}); setEditMode(false); setFormErr(''); setShowModal(true); };
   const openEdit   = (row: RunRow) => {
     setForm({
       CompanyCode:            String(row.CompanyCode ?? ''),
@@ -922,6 +1280,7 @@ export default function HomePage() {
       EmploymentStatus:       String(row.EmploymentStatus  ?? ''),
       ContractStartDate:      row.ContractStartDate      ? String(row.ContractStartDate).slice(0,10)      : '',
       EffectivePermanentDate: row.EffectivePermanentDate ? String(row.EffectivePermanentDate).slice(0,10) : '',
+      LevelCode:              row.LevelCode ? String(row.LevelCode) : '',
     });
     setEditMode(true); setFormErr(''); setShowModal(true);
   };
@@ -1040,7 +1399,7 @@ export default function HomePage() {
     setCoriCompanyFilter('');
     setTab('run');
     setKaryawanList([]); setLeaveRows([]); setRuns([]); setHistRows([]);
-    setRunResult(null); setCoriRunResult(null); setSelectedRun(null); setRunDetail(null);
+    setRunResult(null); setCoriRunResult(null); setLogwRunResult(null); setSelectedRun(null); setRunDetail(null);
   };
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -1081,12 +1440,51 @@ export default function HomePage() {
             <div>
               <h1 className="text-2xl font-black text-gray-900">Run Topup</h1>
               <p className="text-sm text-gray-400 mt-1">
-                {isCori ? 'Jalankan fn_topup_AL_Corinthian_daily — CORI & CII' : 'Jalankan function topup leave untuk APLL'}
+                {isCori ? 'Jalankan fn_topup_AL_Corinthian_daily — CORI & CII'
+                 : isLogw ? 'Jalankan TopUpLOGWINV2 — pilih periode bulan dan tahun'
+                 : 'Jalankan function topup leave untuk APLL'}
               </p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <Card className="p-6">
-                <h2 className="font-bold text-base mb-4">Pilih Tanggal</h2>
+                <h2 className="font-bold text-base mb-4">{isLogw ? 'Pilih Periode' : 'Pilih Tanggal'}</h2>
+
+                {isLogw ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Bulan</label>
+                        <select value={logwMonth} onChange={e=>setLogwMonth(Number(e.target.value))}
+                          className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-gray-50 focus:bg-white transition">
+                          {MONTH_NAMES.map((mn, i) => <option key={mn} value={i+1}>{i+1} — {mn}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Tahun</label>
+                        <input type="number" value={logwYear} onChange={e=>setLogwYear(Number(e.target.value)||new Date().getFullYear())}
+                          className="w-full border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-gray-50 focus:bg-white transition" />
+                      </div>
+                    </div>
+
+                    <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-3 text-[11px] text-sky-800 space-y-1">
+                      <div className="font-semibold">Yang terjadi di periode ini:</div>
+                      {logwMonth === 1 && <div>• Rollover Januari — sisa saldo tahun lalu pindah ke carry over</div>}
+                      <div>• Q4 Carry — pelunasan joiner Okt–Des tahun lalu (sekali per tahun)</div>
+                      {logwMonth === 4 && <div>• Clear April — sisa carry over dihapus</div>}
+                      <div>• Top-up bulanan sesuai tabel distribusi, dibatasi plafon prorata</div>
+                    </div>
+
+                    <Btn variant="primary" size="lg" onClick={handleRun} disabled={running} className="w-full">
+                      {running ? 'Running…' : `Jalankan ${MONTH_NAMES[logwMonth-1]} ${logwYear}`}
+                    </Btn>
+                    <Btn variant="ghost" size="sm" onClick={handleRunFullYear} disabled={running} className="w-full">
+                      {running ? 'Running…' : `Jalankan Setahun Penuh (Jan–Des ${logwYear})`}
+                    </Btn>
+                    <p className="text-[11px] text-gray-400 leading-relaxed">
+                      Proses ini hanya membayar jatah bulan yang dipilih. Bulan yang terlewat bisa dijalankan susulan kapan saja — plafon prorata menjaga total setahunnya tetap benar.
+                    </p>
+                  </div>
+                ) : (
                 <div className="space-y-4">
                   <div>
                     <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Tanggal Test</label>
@@ -1115,6 +1513,7 @@ export default function HomePage() {
                     {running ? 'Running…' : 'Jalankan Sekarang'}
                   </Btn>
                 </div>
+                )}
               </Card>
 
               <div className="space-y-4">
@@ -1187,7 +1586,60 @@ export default function HomePage() {
                   </Card>
                 )}
 
-                {!runResult && !coriRunResult && !runError && (
+                {/* LOGW result */}
+                {isLogw && logwRunResult && (
+                  <Card className="p-5">
+                    <div className="mb-4">
+                      <div className="font-bold text-sm text-gray-900">Run Berhasil</div>
+                      <div className="text-[11px] text-gray-400 mt-0.5">
+                        LOGW · Periode {MONTH_NAMES[(logwRunResult.periodMonth ?? 1)-1]} {logwRunResult.periodYear}
+                      </div>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-2 gap-2">
+                        <Stat label="Hari Cair"    value={logwRunResult.summary.HariCair}  gradient="bg-gradient-to-br from-sky-500 to-blue-600" />
+                        <Stat label="Karyawan Topup" value={logwRunResult.summary.TOPUP}   gradient="bg-gradient-to-br from-indigo-500 to-violet-500" />
+                        <Stat label="Q4 Carry"     value={logwRunResult.summary.Q4_CARRY}  gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
+                        <Stat label="Rollover Jan" value={logwRunResult.summary.ROLLOVER}  gradient="bg-gradient-to-br from-purple-500 to-fuchsia-600" />
+                      </div>
+                      {logwRunResult.summary.CLEAR_APR > 0 && (
+                        <Stat label="Clear April" value={logwRunResult.summary.CLEAR_APR} gradient="bg-gradient-to-br from-orange-400 to-pink-500" />
+                      )}
+                      {logwRunResult.rows.length > 0 ? (
+                        <div className="overflow-x-auto rounded-xl border border-gray-100 mt-2 max-h-[50vh] overflow-y-auto">
+                          <table className="w-full text-xs">
+                            <thead className="bg-gray-50 sticky top-0">
+                              <tr>{['Employee','Nama','Level','Aksi','Δ','LB Before','LB After','Carry Before','Carry After'].map(h=><th key={h} className="px-3 py-2 text-left text-gray-400 uppercase text-[10px] tracking-wide whitespace-nowrap">{h}</th>)}</tr>
+                            </thead>
+                            <tbody>
+                              {logwRunResult.rows.map((r,i)=>(
+                                <tr key={i} className="border-t border-gray-50 hover:bg-gray-50">
+                                  <td className="px-3 py-2 font-mono text-indigo-600 font-semibold whitespace-nowrap">{String(r.EmployeeNo)}</td>
+                                  <td className="px-3 py-2 text-gray-600 max-w-[14rem] truncate">{String(r.FullName ?? '')}</td>
+                                  <td className="px-3 py-2 font-bold text-gray-500">{String(r.LevelCode ?? '—')}</td>
+                                  <td className="px-3 py-2"><ActionBadge action={String(r.ActionType)} /></td>
+                                  <td className={`px-3 py-2 font-bold ${Number(r.Delta)>0?'text-emerald-600':'text-gray-300'}`}>
+                                    {Number(r.Delta)>0?`+${String(r.Delta)}`:String(r.Delta)}
+                                  </td>
+                                  <td className="px-3 py-2 text-right text-gray-500">{String(r.LBPraTopUp ?? '')}</td>
+                                  <td className="px-3 py-2 text-right font-bold text-emerald-600">{String(r.LBAfterTopUp ?? '')}</td>
+                                  <td className="px-3 py-2 text-right text-gray-400">{String(r.LBBPraTopUp ?? '')}</td>
+                                  <td className="px-3 py-2 text-right text-gray-500">{String(r.LBBAfterTopUp ?? '')}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      ) : (
+                        <div className="text-[11px] text-gray-400 bg-gray-50 rounded-xl px-3 py-2.5">
+                          Tidak ada karyawan yang diproses di periode ini. Cek apakah karyawan sudah punya data level (LevelType 3) dan tabel distribusi tahun {logwRunResult.periodYear} sudah terisi.
+                        </div>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {!runResult && !coriRunResult && !logwRunResult && !runError && (
                   <Card className="p-8 flex flex-col items-center justify-center text-center text-gray-300">
                     <div className="text-sm font-medium">Belum ada hasil</div>
                     <div className="text-xs mt-1">Klik Jalankan untuk mulai</div>
@@ -1250,6 +1702,7 @@ export default function HomePage() {
                       {[
                         'No. Karyawan','Nama',
                         ...(isCori ? ['Company','Status Kerja','Tgl Kontrak','Tgl Permanent'] : []),
+                        ...(isLogw ? ['Level'] : []),
                         'Join Date','Gender','Status','Aksi'
                       ].map(h=>(
                         <th key={h} className="px-4 py-3 text-left text-xs font-semibold text-gray-400 uppercase tracking-wide whitespace-nowrap">{h}</th>
@@ -1258,7 +1711,7 @@ export default function HomePage() {
                   </thead>
                   <tbody>
                     {karyawanList.length===0 && (
-                      <tr><td colSpan={isCori?10:6} className="px-4 py-12 text-center text-sm text-gray-400">Tidak ada data</td></tr>
+                      <tr><td colSpan={isCori?10:isLogw?7:6} className="px-4 py-12 text-center text-sm text-gray-400">Tidak ada data</td></tr>
                     )}
                     {karyawanList.map((row,i)=>(
                       <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition">
@@ -1276,6 +1729,13 @@ export default function HomePage() {
                           <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{row.ContractStartDate?String(row.ContractStartDate).slice(0,10):<span className="text-gray-300">—</span>}</td>
                           <td className="px-4 py-3 text-xs text-gray-500 font-mono whitespace-nowrap">{row.EffectivePermanentDate?String(row.EffectivePermanentDate).slice(0,10):<span className="text-gray-300">—</span>}</td>
                         </>}
+                        {isLogw && (
+                          <td className="px-4 py-3">
+                            {row.LevelCode
+                              ? <span className="font-mono text-xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg">{String(row.LevelCode)}</span>
+                              : <span className="text-red-400 text-xs font-semibold" title="Tanpa level, karyawan ini tidak akan ikut terproses">belum diisi</span>}
+                          </td>
+                        )}
                         <td className="px-4 py-3 text-xs text-gray-500 font-mono">{row.JoinDate?String(row.JoinDate).slice(0,10):'-'}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-full ${String(row.Gender)==='F'?'bg-pink-50 text-pink-600':'bg-blue-50 text-blue-600'}`}>
@@ -1550,12 +2010,17 @@ export default function HomePage() {
         )}
 
         {/* ── TAB: TEST ────────────────────────────────────────────────────── */}
-        {tab === 'test' && !isCori && <TestTab />}
+        {tab === 'test' && !isCori && !isLogw && <TestTab />}
         {tab === 'test' &&  isCori && <CoriTestTab />}
+        {tab === 'test' &&  isLogw && <LogwTestTab />}
+
+        {/* ── TAB: DISTRIBUSI ──────────────────────────────────────────────── */}
+        {tab === 'distribusi' && isLogw && <DistribusiTab />}
 
         {/* ── TAB: PANDUAN ─────────────────────────────────────────────────── */}
-        {tab === 'panduan' && !isCori && <ApllPanduanTab />}
+        {tab === 'panduan' && !isCori && !isLogw && <ApllPanduanTab />}
         {tab === 'panduan' &&  isCori && <CoriPanduanTab />}
+        {tab === 'panduan' &&  isLogw && <LogwPanduanTab />}
 
         {/* ── TAB: SQL FUNCTION ────────────────────────────────────────────── */}
         {tab === 'fungsi' && companyGroup && <SqlFunctionTab company={companyGroup} />}
@@ -1600,6 +2065,17 @@ export default function HomePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <Input label="Tgl Mulai Kontrak" type="date" value={form.ContractStartDate} onChange={e=>setForm({...form,ContractStartDate:e.target.value})} />
                   <Input label="Tgl Effective Permanent" type="date" value={form.EffectivePermanentDate} onChange={e=>setForm({...form,EffectivePermanentDate:e.target.value})} />
+                </div>
+              </>
+            )}
+
+            {/* LOGW-specific: level menentukan tabel distribusi mana yang dipakai */}
+            {isLogw && (
+              <>
+                <Input label="Kode Level" value={form.LevelCode ?? ''} placeholder="AM / HOD / MNG"
+                  onChange={e=>setForm({...form,LevelCode:e.target.value.toUpperCase()})} />
+                <div className="bg-sky-50 border border-sky-100 rounded-xl px-4 py-2.5 text-[11px] text-sky-800">
+                  Level menentukan jatah cuti karyawan ini, diambil dari tab Tabel Distribusi. Karyawan tanpa level tidak akan ikut terproses saat top-up dijalankan.
                 </div>
               </>
             )}
