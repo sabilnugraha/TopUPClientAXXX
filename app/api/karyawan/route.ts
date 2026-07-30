@@ -149,10 +149,15 @@ export async function POST(req: NextRequest) {
     // Karyawan tanpa baris ini tidak akan pernah diproses top-up.
     if (isLogw && LevelCode) {
       await query(
-        `INSERT INTO "PeMasterLevel"("CompanyCode","EmployeeNo","LevelType","LevelCode")
-         VALUES ($1,$2,'3',$3)
-         ON CONFLICT ("CompanyCode","EmployeeNo","LevelType") DO UPDATE SET
-           "LevelCode" = EXCLUDED."LevelCode"`,
+        `INSERT INTO "PeMasterLevel"(
+           "CompanyCode","EmployeeNo","LevelType","LevelCode",
+           "ChangedNo","CreatedDate","CreatedBy","ChangedDate","ChangedBy"
+         )
+         VALUES ($1,$2,'3',$3,0,NOW(),'System',NOW(),'System')
+         ON CONFLICT ("CompanyCode","LevelType","EmployeeNo") DO UPDATE SET
+           "LevelCode"   = EXCLUDED."LevelCode",
+           "ChangedDate" = NOW(),
+           "ChangedBy"   = 'System'`,
         [CompanyCode, EmployeeNo, LevelCode]
       );
     }

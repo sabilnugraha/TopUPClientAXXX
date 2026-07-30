@@ -79,12 +79,18 @@ export async function POST() {
       );
       empCreated++;
 
-      // PeMasterLevel — LevelType '3' is what the function joins on
+      // PeMasterLevel — LevelType '3' is what the function joins on.
+      // Kolom audit (ChangedNo/CreatedDate/...) NOT NULL, ikut pola PeMasterLeave.
       await query(
-        `INSERT INTO "PeMasterLevel"("CompanyCode","EmployeeNo","LevelType","LevelCode")
-         VALUES ($1,$2,$3,$4)
-         ON CONFLICT ("CompanyCode","EmployeeNo","LevelType") DO UPDATE SET
-           "LevelCode" = EXCLUDED."LevelCode"`,
+        `INSERT INTO "PeMasterLevel"(
+           "CompanyCode","EmployeeNo","LevelType","LevelCode",
+           "ChangedNo","CreatedDate","CreatedBy","ChangedDate","ChangedBy"
+         )
+         VALUES ($1,$2,$3,$4,0,NOW(),'TestSetupLogw',NOW(),'TestSetupLogw')
+         ON CONFLICT ("CompanyCode","LevelType","EmployeeNo") DO UPDATE SET
+           "LevelCode"   = EXCLUDED."LevelCode",
+           "ChangedDate" = NOW(),
+           "ChangedBy"   = 'TestSetupLogw'`,
         [LOGW_COMPANY, emp.employeeNo, LOGW_LEVEL_TYPE, emp.levelCode]
       );
       levelCreated++;
