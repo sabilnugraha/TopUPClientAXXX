@@ -72,7 +72,12 @@ export async function GET(req: NextRequest) {
       b.effectiveYear - a.effectiveYear || a.levelCode.localeCompare(b.levelCode)
     );
 
-    const years = [...new Set(rows.map((r) => r.EffectiveYear))].sort((a, b) => b - a);
+    // Catatan: project ini target ES5, jadi spread pada Set (`[...new Set(x)]`)
+    // tidak bisa dipakai tanpa downlevelIteration. Dedup manual saja.
+    const years = rows
+      .map((r) => Number(r.EffectiveYear))
+      .filter((y, i, arr) => arr.indexOf(y) === i)
+      .sort((a, b) => b - a);
 
     return NextResponse.json({ rows, pivot, years });
   } catch (err) {
