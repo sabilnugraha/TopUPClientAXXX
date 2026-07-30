@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type DbValue      = string | number | boolean | null | undefined;
@@ -136,6 +136,110 @@ function Select({ label, children, ...props }: { label: string } & React.SelectH
     </div>
   );
 }
+
+// ── SearchSelect: dropdown dengan kotak pencarian ─────────────────────────────
+// Dipakai menggantikan <select> biasa kalau daftarnya panjang (mis. karyawan).
+interface SearchOption { value: string; label: string; sub?: string }
+function SearchSelect({
+  value, onChange, options, allLabel = 'Semua', placeholder = 'Ketik untuk mencari…', width = 'w-72',
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: SearchOption[];
+  allLabel?: string;
+  placeholder?: string;
+  width?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ]       = useState('');
+  const boxRef          = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (boxRef.current && !boxRef.current.contains(e.target as Node)) { setOpen(false); setQ(''); }
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [open]);
+
+  const needle   = q.trim().toLowerCase();
+  const filtered = needle
+    ? options.filter(o =>
+        o.label.toLowerCase().includes(needle) ||
+        o.value.toLowerCase().includes(needle) ||
+        (o.sub ?? '').toLowerCase().includes(needle))
+    : options;
+
+  const current = options.find(o => o.value === value);
+
+  const pick = (v: string) => { onChange(v); setOpen(false); setQ(''); };
+
+  return (
+    <div className={`relative ${width}`} ref={boxRef}>
+      <button type="button" onClick={()=>setOpen(o=>!o)}
+        className="w-full flex items-center justify-between gap-2 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm bg-gray-50 hover:bg-white focus:outline-none focus:ring-2 focus:ring-indigo-400 transition text-left">
+        <span className={`truncate ${current?'text-gray-800':'text-gray-400'}`}>{current ? current.label : allLabel}</span>
+        <svg className={`w-4 h-4 shrink-0 text-gray-400 transition-transform ${open?'rotate-180':''}`} fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-xl shadow-xl overflow-hidden">
+          <div className="p-2 border-b border-gray-100">
+            <input autoFocus value={q} onChange={e=>setQ(e.target.value)} placeholder={placeholder}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 focus:bg-white transition" />
+          </div>
+          <div className="max-h-64 overflow-y-auto py-1">
+            <button type="button" onClick={()=>pick('')}
+              className={`w-full text-left px-3.5 py-2 text-sm hover:bg-indigo-50 transition ${value===''?'bg-indigo-50 text-indigo-700 font-semibold':'text-gray-600'}`}>
+              {allLabel}
+            </button>
+            {filtered.filter(o=>o.value!=='').map(o=>(
+              <button key={o.value} type="button" onClick={()=>pick(o.value)}
+                className={`w-full text-left px-3.5 py-2 text-sm hover:bg-indigo-50 transition ${value===o.value?'bg-indigo-50 text-indigo-700 font-semibold':'text-gray-700'}`}>
+                {o.label}
+              </button>
+            ))}
+            {filtered.filter(o=>o.value!=='').length===0 && (
+              <div className="px-3.5 py-4 text-center text-xs text-gray-400">Tidak ada yang cocok</div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── TableSearch: kotak filter cepat untuk isi tabel (client-side) ─────────────
+function TableSearch({ value, onChange, placeholder = 'Cari di tabel…', width = 'w-64' }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; width?: string;
+}) {
+  return (
+    <div className={`relative ${width}`}>
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/>
+        </svg>
+      </span>
+      <input value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+        className="w-full border border-gray-200 rounded-xl pl-9 pr-8 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-gray-50 focus:bg-white transition" />
+      {value && (
+        <button onClick={()=>onChange('')} type="button"
+          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-300 hover:text-gray-500 text-lg leading-none">×</button>
+      )}
+    </div>
+  );
+}
+
+/** Cocokkan kata kunci ke seluruh nilai pada sebuah baris */
+function rowMatches(row: Record<string, unknown>, needle: string): boolean {
+  const q = needle.trim().toLowerCase();
+  if (!q) return true;
+  return Object.values(row).some(v => v !== null && v !== undefined && String(v).toLowerCase().includes(q));
+}
+
 function Btn({ children, variant='primary', size='md', ...props }: {
   children: React.ReactNode; variant?:'primary'|'ghost'|'danger'|'success'; size?:'sm'|'md'|'lg';
 } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
@@ -295,6 +399,14 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
   const [cleanupMsg,   setCleanupMsg]   = useState('');
   const [runningAll,   setRunningAll]   = useState(false);
   const [setupLoading, setSetupLoading] = useState(false);
+  const [scSearch,     setScSearch]     = useState('');
+
+  const scenariosShown = scenarios.filter(sc =>
+    rowMatches({
+      id: sc.id, category: sc.category, name: sc.name,
+      description: sc.description, employeeNo: sc.employeeNo, employeeName: sc.employeeName,
+    }, scSearch)
+  );
 
   useEffect(() => {
     fetch(runApi).then(r=>r.json()).then(data=>{ if(Array.isArray(data)) setScenarios(data); });
@@ -381,7 +493,8 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
           <p className="text-sm text-gray-400 mt-1">{total} skenario · otomatis setup, run, dan validasi</p>
           {noteText && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5 mt-2 font-medium">{noteText}</p>}
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          <TableSearch value={scSearch} onChange={setScSearch} placeholder="Cari skenario…" width="w-56" />
           <Btn variant="ghost" size="sm" onClick={handleSetup} disabled={setupLoading}>{setupLoading?'Loading…':'Setup Dummy Data'}</Btn>
           <Btn variant={accentVariant} onClick={runAll} disabled={runningAll||!scenarios.length}>{runningAll?'Running…':'Run All Tests'}</Btn>
           <Btn variant="danger" size="sm" onClick={handleCleanup}>Cleanup</Btn>
@@ -404,7 +517,15 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
         </Card>
       )}
       <div className="space-y-2">
-        {scenarios.map(sc=>{
+        {scSearch && (
+          <div className="text-xs text-gray-400 px-1">
+            {scenariosShown.length} dari {total} skenario cocok dengan &ldquo;{scSearch}&rdquo;
+          </div>
+        )}
+        {scSearch && scenariosShown.length===0 && (
+          <Card className="p-8 text-center text-sm text-gray-400">Tidak ada skenario yang cocok</Card>
+        )}
+        {scenariosShown.map(sc=>{
           const status=statuses[sc.id]??'idle';
           const result=results[sc.id];
           const isOpen=expanded===sc.id;
@@ -870,6 +991,7 @@ function DistribusiTab() {
   const [years,    setYears]    = useState<number[]>([]);
   const [loading,  setLoading]  = useState(false);
   const [error,    setError]    = useState('');
+  const [search,   setSearch]   = useState('');
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -885,6 +1007,9 @@ function DistribusiTab() {
   useEffect(() => { load(); }, [load]);
 
   const missingPrevYear = years.length > 0 && !years.includes(thisYear - 1);
+  const pivotShown = pivot.filter(r =>
+    rowMatches({ levelCode: r.levelCode, effectiveYear: r.effectiveYear, annual: r.annual }, search)
+  );
 
   return (
     <div className="space-y-5">
@@ -895,6 +1020,7 @@ function DistribusiTab() {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-[11px] font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-lg">Hanya baca</span>
+          <TableSearch value={search} onChange={setSearch} placeholder="Cari level / tahun…" width="w-52" />
           <Btn variant="ghost" size="sm" onClick={load} disabled={loading}>{loading?'Memuat…':'Muat Ulang'}</Btn>
         </div>
       </div>
@@ -935,7 +1061,10 @@ function DistribusiTab() {
                 </tr>
               </thead>
               <tbody>
-                {pivot.map((r) => (
+                {pivotShown.length===0 && (
+                  <tr><td colSpan={16} className="px-3 py-10 text-center text-gray-400">Tidak ada yang cocok dengan &ldquo;{search}&rdquo;</td></tr>
+                )}
+                {pivotShown.map((r) => (
                   <tr key={`${r.effectiveYear}-${r.levelCode}`} className="border-t border-gray-50 hover:bg-gray-50">
                     <td className="px-3 py-2.5 font-mono text-gray-500">{r.effectiveYear}</td>
                     <td className="px-3 py-2.5 font-bold text-indigo-600">{r.levelCode}</td>
@@ -1217,6 +1346,7 @@ export default function HomePage() {
   const [leaveRows,       setLeaveRows]       = useState<LeaveBalanceRow[]>([]);
   const [leaveLoad,       setLeaveLoad]       = useState(false);
   const [leaveEmpFilter,  setLeaveEmpFilter]  = useState('');
+  const [leaveTableSearch, setLeaveTableSearch] = useState('');
   const [leaveEditRow,    setLeaveEditRow]    = useState<LeaveBalanceRow|null>(null);
   const [leaveEditForm,   setLeaveEditForm]   = useState({ LeaveBalance:'0', LeaveBalanceBefore:'0', ExpiredDate:'' });
   const [leaveEditSaving, setLeaveEditSaving] = useState(false);
@@ -1233,6 +1363,11 @@ export default function HomePage() {
       setLeaveRows(Array.isArray(data) ? data : []);
     } finally { setLeaveLoad(false); }
   }, [companyParams]);
+
+  // Filter cepat client-side untuk isi tabel saldo
+  const leaveRowsShown = leaveRows.filter(r =>
+    rowMatches(r as unknown as Record<string, unknown>, leaveTableSearch)
+  );
 
   const openLeaveEdit = (row: LeaveBalanceRow) => {
     setLeaveEditRow(row);
@@ -1305,10 +1440,13 @@ export default function HomePage() {
 
   // ── Logs tab ──────────────────────────────────────────────────────────────
   const [runs,        setRuns]        = useState<RunRow[]>([]);
+  const [runSearch,   setRunSearch]   = useState('');
   const [logsLoading, setLogsLoading] = useState(false);
   const [selectedRun, setSelectedRun] = useState<string|null>(null);
   const [runDetail,   setRunDetail]   = useState<{details:DetailRow[];history:HistRow[]}|null>(null);
   const [detailLoad,  setDetailLoad]  = useState(false);
+
+  const runsShown = runs.filter(r => rowMatches(r, runSearch));
 
   const loadRuns = useCallback(async () => {
     setLogsLoading(true);
@@ -1325,10 +1463,13 @@ export default function HomePage() {
   // ── History tab ───────────────────────────────────────────────────────────
   const [histFilter,      setHistFilter]      = useState({ employeeNo:'', leaveType:'', periodMonth:'', periodYear:'' });
   const [histRows,        setHistRows]        = useState<HistRow[]>([]);
+  const [histSearch,      setHistSearch]      = useState('');
   const [histLoading,     setHistLoading]     = useState(false);
   const [histDeleting,    setHistDeleting]    = useState<string|null>(null);
   const [deleteRunTarget, setDeleteRunTarget] = useState<RunRow|null>(null);
   const [deletingRun,     setDeletingRun]     = useState(false);
+
+  const histRowsShown = histRows.filter(h => rowMatches(h, histSearch));
 
   const loadHistory = useCallback(async () => {
     setHistLoading(true);
@@ -1770,12 +1911,20 @@ export default function HomePage() {
                     <option value="CII">CII</option>
                   </select>
                 )}
-                <select className="border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-400" value={leaveEmpFilter} onChange={e=>{ setLeaveEmpFilter(e.target.value); loadLeaveBalance(e.target.value||undefined); }}>
-                  <option value="">Semua Karyawan</option>
-                  {leaveRows.filter((r,i,arr)=>arr.findIndex(x=>x.EmployeeNo===r.EmployeeNo&&x.CompanyCode===r.CompanyCode)===i).map(r=>(
-                    <option key={`${r.CompanyCode}|${r.EmployeeNo}`} value={r.EmployeeNo}>{isCori?`[${r.CompanyCode}] `:''}{r.EmployeeNo} — {r.FullName}</option>
-                  ))}
-                </select>
+                <TableSearch value={leaveTableSearch} onChange={setLeaveTableSearch} placeholder="Cari kode cuti / nama…" width="w-60" />
+                <SearchSelect
+                  value={leaveEmpFilter}
+                  onChange={(v)=>{ setLeaveEmpFilter(v); loadLeaveBalance(v||undefined); }}
+                  allLabel="Semua Karyawan"
+                  placeholder="Ketik nomor atau nama…"
+                  options={leaveRows
+                    .filter((r,i,arr)=>arr.findIndex(x=>x.EmployeeNo===r.EmployeeNo&&x.CompanyCode===r.CompanyCode)===i)
+                    .map(r=>({
+                      value: r.EmployeeNo,
+                      label: `${isCori?`[${r.CompanyCode}] `:''}${r.EmployeeNo} — ${r.FullName}`,
+                      sub:   r.FullName,
+                    }))}
+                />
                 <Btn variant="ghost" onClick={()=>loadLeaveBalance(leaveEmpFilter||undefined)} disabled={leaveLoad}>{leaveLoad?'Loading…':'↻ Refresh'}</Btn>
               </div>
             </div>
@@ -1795,9 +1944,12 @@ export default function HomePage() {
                     {!leaveLoad && leaveRows.length===0 && (
                       <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-400">Belum ada data saldo</td></tr>
                     )}
+                    {!leaveLoad && leaveRows.length>0 && leaveRowsShown.length===0 && (
+                      <tr><td colSpan={8} className="px-4 py-12 text-center text-sm text-gray-400">Tidak ada yang cocok dengan &ldquo;{leaveTableSearch}&rdquo;</td></tr>
+                    )}
                     {!leaveLoad && (()=>{
                       let lastKey='';
-                      return leaveRows.map((row,i)=>{
+                      return leaveRowsShown.map((row,i)=>{
                         const rowKey=`${row.CompanyCode}|${row.EmployeeNo}`;
                         const isNewEmp=rowKey!==lastKey;
                         if(isNewEmp) lastKey=rowKey;
@@ -1828,7 +1980,11 @@ export default function HomePage() {
               </div>
               {leaveRows.length>0 && (
                 <div className="px-4 py-2.5 border-t border-gray-50 text-xs text-gray-400">
-                  {leaveRows.length} baris · {leaveRows.filter((r,i,arr)=>arr.findIndex(x=>x.EmployeeNo===r.EmployeeNo&&x.CompanyCode===r.CompanyCode)===i).length} karyawan
+                  {leaveTableSearch
+                    ? <>{leaveRowsShown.length} dari {leaveRows.length} baris</>
+                    : <>{leaveRows.length} baris</>}
+                  {' · '}
+                  {leaveRowsShown.filter((r,i,arr)=>arr.findIndex(x=>x.EmployeeNo===r.EmployeeNo&&x.CompanyCode===r.CompanyCode)===i).length} karyawan
                 </div>
               )}
             </Card>
@@ -1843,7 +1999,10 @@ export default function HomePage() {
                 <h1 className="text-2xl font-black text-gray-900">Run Logs</h1>
                 <p className="text-sm text-gray-400 mt-1">History eksekusi function topup{isCori?' — APLL Run Logs (CORI logs belum tersedia)':''}</p>
               </div>
-              <Btn variant="ghost" onClick={loadRuns} disabled={logsLoading}>{logsLoading?'Loading…':'↻ Refresh'}</Btn>
+              <div className="flex items-center gap-2">
+                <TableSearch value={runSearch} onChange={setRunSearch} placeholder="Cari tanggal / periode…" width="w-60" />
+                <Btn variant="ghost" onClick={loadRuns} disabled={logsLoading}>{logsLoading?'Loading…':'↻ Refresh'}</Btn>
+              </div>
             </div>
             <Card className="overflow-hidden">
               <div className="overflow-x-auto">
@@ -1859,7 +2018,10 @@ export default function HomePage() {
                     {runs.length===0 && (
                       <tr><td colSpan={11} className="px-4 py-12 text-center text-sm text-gray-400">{isCori?'Run log Corinthian belum tersedia':'Belum ada run'}</td></tr>
                     )}
-                    {runs.map((r,i)=>{
+                    {runs.length>0 && runsShown.length===0 && (
+                      <tr><td colSpan={11} className="px-4 py-12 text-center text-sm text-gray-400">Tidak ada yang cocok dengan &ldquo;{runSearch}&rdquo;</td></tr>
+                    )}
+                    {runsShown.map((r,i)=>{
                       const failed=Number(r.TopUpFailed??0)+Number(r.CarryFailed??0)+Number(r.ResetFailed??0)+Number(r.FiveYearFailed??0)+Number(r.ResetLLFailed??0);
                       const runId=String(r.RunID);
                       return (
@@ -1958,7 +2120,12 @@ export default function HomePage() {
                 <Input label="Bulan" type="number" placeholder="6" min={1} max={12} value={histFilter.periodMonth} onChange={e=>setHistFilter({...histFilter,periodMonth:e.target.value})} />
                 <Input label="Tahun" type="number" placeholder="2026" value={histFilter.periodYear} onChange={e=>setHistFilter({...histFilter,periodYear:e.target.value})} />
               </div>
-              <div className="mt-4"><Btn variant={isCori?'success':'primary'} onClick={loadHistory} disabled={histLoading}>{histLoading?'Loading…':'Cari'}</Btn></div>
+              <div className="mt-4 flex items-center gap-3 flex-wrap">
+                <Btn variant={isCori?'success':'primary'} onClick={loadHistory} disabled={histLoading}>{histLoading?'Loading…':'Cari'}</Btn>
+                {histRows.length>0 && (
+                  <TableSearch value={histSearch} onChange={setHistSearch} placeholder="Filter hasil — nama, aksi, periode…" width="w-72" />
+                )}
+              </div>
             </Card>
 
             {histRows.length>0 && (
@@ -1973,7 +2140,10 @@ export default function HomePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {histRows.map((h,i)=>{
+                      {histRowsShown.length===0 && (
+                        <tr><td colSpan={isCori?12:11} className="px-4 py-12 text-center text-sm text-gray-400">Tidak ada yang cocok dengan &ldquo;{histSearch}&rdquo;</td></tr>
+                      )}
+                      {histRowsShown.map((h,i)=>{
                         const key=`${h.EmployeeNo}|${h.LeaveType}|${h.PeriodYear}|${h.PeriodMonth}|${h.ActionType}`;
                         return (
                           <tr key={i} className="border-b border-gray-50 hover:bg-gray-50 transition">
@@ -1995,7 +2165,9 @@ export default function HomePage() {
                     </tbody>
                   </table>
                 </div>
-                <div className="px-4 py-3 border-t border-gray-50 text-xs text-gray-400">{histRows.length} baris (max 200)</div>
+                <div className="px-4 py-3 border-t border-gray-50 text-xs text-gray-400">
+                  {histSearch ? `${histRowsShown.length} dari ${histRows.length} baris` : `${histRows.length} baris (max 200)`}
+                </div>
               </Card>
             )}
             {histRows.length===0 && !histLoading && (
