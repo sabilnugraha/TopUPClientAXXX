@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 const CORI_COMPANIES  = ['CORI', 'CII'];
-const LOGW_COMPANIES  = ['LOGW'];
+const LOGW_COMPANIES  = ['LOGWIN'];
 const APLL_LEAVE_INIT = ['AL','PH','HAID','KHITAN/BABTIS_ANAK','ISTRI_MELAHIRKAN','ML','KELUARGA_MENINGGAL','MELAHIRKAN','MENIKAHKAN_ANAK','KEGUGURAN','ISTRI_KEGUGURAN'];
 const CORI_LEAVE_INIT = ['AL','CI'];
 const LOGW_LEAVE_INIT = ['AL'];

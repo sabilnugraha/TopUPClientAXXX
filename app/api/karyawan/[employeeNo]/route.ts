@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
 
 const CORI_COMPANIES = ['CORI', 'CII'];
-const LOGW_COMPANIES = ['LOGW'];
+const LOGW_COMPANIES = ['LOGWIN'];
 
 // GET /api/karyawan/:employeeNo?companyCode=
 export async function GET(

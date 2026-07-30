@@ -19,11 +19,11 @@ interface DistRow {
   IsActive:      boolean;
 }
 
-// GET /api/distribusi?companyCode=LOGW&effectiveYear=2026&leaveCode=AL
+// GET /api/distribusi?companyCode=LOGWIN&effectiveYear=2026&leaveCode=AL
 export async function GET(req: NextRequest) {
   try {
     const sp        = req.nextUrl.searchParams;
-    const company   = sp.get('companyCode')   ?? 'LOGW';
+    const company   = sp.get('companyCode')   ?? 'LOGWIN';
     const leaveCode = sp.get('leaveCode')     ?? 'AL';
     const yearParam = sp.get('effectiveYear');
 
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const {
-      companyCode = 'LOGW',
+      companyCode = 'LOGWIN',
       leaveCode   = 'AL',
       effectiveYear,
       levelCode,
@@ -142,11 +142,11 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE /api/distribusi?companyCode=LOGW&leaveCode=AL&effectiveYear=2026&levelCode=AM
+// DELETE /api/distribusi?companyCode=LOGWIN&leaveCode=AL&effectiveYear=2026&levelCode=AM
 export async function DELETE(req: NextRequest) {
   try {
     const sp            = req.nextUrl.searchParams;
-    const companyCode   = sp.get('companyCode')   ?? 'LOGW';
+    const companyCode   = sp.get('companyCode')   ?? 'LOGWIN';
     const leaveCode     = sp.get('leaveCode')     ?? 'AL';
     const effectiveYear = sp.get('effectiveYear');
     const levelCode     = sp.get('levelCode');

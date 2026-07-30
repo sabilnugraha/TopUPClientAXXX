@@ -17,7 +17,7 @@
 //   CLEAR_APR — April: LeaveBalanceBefore dinolkan
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const LOGW_COMPANY     = 'LOGW';
+export const LOGW_COMPANY     = 'LOGWIN';
 export const LOGW_LEAVE_CODES = ['AL'] as const;
 export const LOGW_LEVEL_TYPE  = '3';
 

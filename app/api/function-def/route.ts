@@ -4,10 +4,10 @@ import { query } from '@/lib/db';
 const FUNCTION_NAMES: Record<string, string> = {
   APLL: 'fn_daily_topup_leave_apll',
   CORI: 'fn_topup_AL_Corinthian_daily',
-  LOGW: 'TopUpLOGWINV2',
+  LOGWIN: 'TopUpLOGWINV2',
 };
 
-// GET /api/function-def?company=APLL|CORI|LOGW
+// GET /api/function-def?company=APLL|CORI|LOGWIN
 export async function GET(req: NextRequest) {
   const company = req.nextUrl.searchParams.get('company') ?? 'APLL';
   const fnName  = FUNCTION_NAMES[company];

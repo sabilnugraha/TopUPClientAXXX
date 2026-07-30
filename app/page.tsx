@@ -7,7 +7,7 @@ type DbValue      = string | number | boolean | null | undefined;
 type RunRow       = Record<string, DbValue>;
 type HistRow      = Record<string, DbValue>;
 type DetailRow    = Record<string, DbValue>;
-type CompanyGroup = 'APLL' | 'CORI' | 'LOGW';
+type CompanyGroup = 'APLL' | 'CORI' | 'LOGWIN';
 type Tab          = 'run' | 'karyawan' | 'saldo' | 'logs' | 'history' | 'test' | 'fungsi' | 'panduan' | 'distribusi';
 
 interface LeaveBalanceRow {
@@ -57,7 +57,7 @@ const LOGW_LEAVE_CODES = ['','AL'];
 
 const APLL_EMPTY: KaryawanForm = { CompanyCode:'APLL',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'',ContractStartDate:'',EffectivePermanentDate:'' };
 const CORI_EMPTY: KaryawanForm = { CompanyCode:'CORI',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'C',ContractStartDate:'',EffectivePermanentDate:'' };
-const LOGW_EMPTY: KaryawanForm = { CompanyCode:'LOGW',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'',ContractStartDate:'',EffectivePermanentDate:'',LevelCode:'AM' };
+const LOGW_EMPTY: KaryawanForm = { CompanyCode:'LOGWIN',EmployeeNo:'',FullName:'',JoinDate:'',Gender:'M',RecordStatus:'A',EmploymentStatus:'',ContractStartDate:'',EffectivePermanentDate:'',LevelCode:'AM' };
 
 const MONTH_NAMES = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des'];
 
@@ -435,7 +435,7 @@ function LogwTestTab() {
       runApi="/api/test/run-logw"
       setupApi="/api/test/setup-logw"
       cleanupApi="/api/test/cleanup-logw"
-      setupConfirmLabel="Buat ulang karyawan test LOGW (TLOGW-*) + tabel distribusi?"
+      setupConfirmLabel="Buat ulang karyawan test LOGWIN (TLOGW-*) + tabel distribusi?"
       accentVariant="primary"
       noteText="Tiap skenario mensimulasikan satu tahun penuh — function dijalankan bulan per bulan, lalu hasilnya dicocokkan"
     />
@@ -706,7 +706,7 @@ function LogwPanduanTab() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-black text-gray-900">Panduan Cuti LOGW</h1>
+        <h1 className="text-2xl font-black text-gray-900">Panduan Cuti LOGWIN</h1>
         <p className="text-sm text-gray-400 mt-1">Aturan perhitungan cuti tahunan — TopUpLOGWINV2</p>
       </div>
 
@@ -798,7 +798,7 @@ function DistribusiTab() {
   const load = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const res  = await fetch('/api/distribusi?companyCode=LOGW&leaveCode=AL');
+      const res  = await fetch('/api/distribusi?companyCode=LOGWIN&leaveCode=AL');
       const data = await res.json();
       if (data.error) { setError(data.error); setPivot([]); }
       else { setPivot(data.pivot ?? []); setYears(data.years ?? []); }
@@ -828,7 +828,7 @@ function DistribusiTab() {
         method: 'POST',
         headers: { 'Content-Type':'application/json' },
         body: JSON.stringify({
-          companyCode:   'LOGW',
+          companyCode:   'LOGWIN',
           leaveCode:     'AL',
           effectiveYear: editRow.effectiveYear,
           levelCode:     editRow.levelCode.trim().toUpperCase(),
@@ -845,7 +845,7 @@ function DistribusiTab() {
 
   const remove = async (r: DistPivotRow) => {
     if (!confirm(`Hapus distribusi ${r.levelCode} tahun ${r.effectiveYear}?`)) return;
-    await fetch(`/api/distribusi?companyCode=LOGW&leaveCode=AL&effectiveYear=${r.effectiveYear}&levelCode=${encodeURIComponent(r.levelCode)}`, { method:'DELETE' });
+    await fetch(`/api/distribusi?companyCode=LOGWIN&leaveCode=AL&effectiveYear=${r.effectiveYear}&levelCode=${encodeURIComponent(r.levelCode)}`, { method:'DELETE' });
     await load();
   };
 
@@ -857,7 +857,7 @@ function DistribusiTab() {
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-black text-gray-900">Tabel Distribusi</h1>
-          <p className="text-sm text-gray-400 mt-1">Jatah cuti per level per bulan — TmLeaveDistributionConfig · LOGW · AL</p>
+          <p className="text-sm text-gray-400 mt-1">Jatah cuti per level per bulan — TmLeaveDistributionConfig · LOGWIN · AL</p>
         </div>
         <div className="flex gap-2">
           <Btn variant="ghost" size="sm" onClick={load} disabled={loading}>{loading?'Memuat…':'Muat Ulang'}</Btn>
@@ -1015,12 +1015,12 @@ function SqlFunctionTab({ company }: { company: CompanyGroup }) {
   };
 
   const isCori = company === 'CORI';
-  const isLogw = company === 'LOGW';
+  const isLogw = company === 'LOGWIN';
   const accent = isCori ? 'from-emerald-500 to-teal-500'
                : isLogw ? 'from-sky-500 to-blue-600'
                : 'from-indigo-500 to-violet-500';
   const companyLabel = isCori ? 'Corinthian Group (CORI · CII)'
-                     : isLogw ? 'LOGW'
+                     : isLogw ? 'LOGWIN'
                      : 'APLL';
 
   return (
@@ -1112,9 +1112,9 @@ function Lobby({ onSelect }: { onSelect: (g: CompanyGroup) => void }) {
           <div className="text-sm text-gray-400 leading-relaxed">CORI · CII<br />fn_topup_AL_Corinthian_daily</div>
           <div className="mt-5 flex items-center gap-2 text-emerald-500 font-semibold text-sm">Masuk <span className="group-hover:translate-x-1 transition-transform inline-block">→</span></div>
         </button>
-        <button onClick={()=>onSelect('LOGW')} className="group bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:border-sky-200 hover:shadow-xl hover:shadow-sky-50/50 transition-all text-left">
+        <button onClick={()=>onSelect('LOGWIN')} className="group bg-white rounded-3xl p-8 shadow-sm border border-gray-100 hover:border-sky-200 hover:shadow-xl hover:shadow-sky-50/50 transition-all text-left">
           <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center text-white text-2xl font-black mb-5 group-hover:scale-105 transition-transform shadow-lg shadow-sky-200">L</div>
-          <div className="font-black text-gray-900 text-xl mb-1">LOGW</div>
+          <div className="font-black text-gray-900 text-xl mb-1">LOGWIN</div>
           <div className="text-sm text-gray-400 leading-relaxed">Distribusi per level<br />TopUpLOGWINV2</div>
           <div className="mt-5 flex items-center gap-2 text-sky-500 font-semibold text-sm">Masuk <span className="group-hover:translate-x-1 transition-transform inline-block">→</span></div>
         </button>
@@ -1132,22 +1132,22 @@ export default function HomePage() {
   const [coriCompanyFilter, setCoriCompanyFilter] = useState<string>(''); // ''|'CORI'|'CII'
 
   const isCori         = companyGroup === 'CORI';
-  const isLogw         = companyGroup === 'LOGW';
+  const isLogw         = companyGroup === 'LOGWIN';
   const activeTabs     = isCori ? CORI_TABS : isLogw ? LOGW_TABS : APLL_TABS;
   const activeLeaveCodes = isCori ? CORI_LEAVE_CODES : isLogw ? LOGW_LEAVE_CODES : APLL_LEAVE_CODES;
   const activeLeaveDesc  = isCori ? CORI_LEAVE_DESC  : isLogw ? LOGW_LEAVE_DESC  : APLL_LEAVE_DESC;
   const groupGradient    = isCori ? 'from-emerald-500 to-teal-500' : isLogw ? 'from-sky-500 to-blue-600' : 'from-indigo-500 to-violet-500';
   const groupShadow      = isCori ? 'shadow-emerald-200'           : isLogw ? 'shadow-sky-200'           : 'shadow-indigo-200';
-  const groupLabel       = isCori ? 'Corinthian Group'             : isLogw ? 'LOGW'                     : 'APLL';
+  const groupLabel       = isCori ? 'Corinthian Group'             : isLogw ? 'LOGWIN'                   : 'APLL';
   const groupSubLabel    = isCori ? 'CORI · CII · fn_topup_AL_Corinthian_daily'
-                         : isLogw ? 'LOGW · TopUpLOGWINV2'
+                         : isLogw ? 'LOGWIN · TopUpLOGWINV2'
                          : 'APLL · fn_daily_topup_leave_apll';
 
   // Build URLSearchParams for company-aware API calls
   const companyParams = useCallback((extra: Record<string,string> = {}) => {
     const p = new URLSearchParams(extra);
     if (companyGroup === 'APLL')      p.set('companyCode',  'APLL');
-    else if (companyGroup === 'LOGW') p.set('companyCode',  'LOGW');
+    else if (companyGroup === 'LOGWIN') p.set('companyCode', 'LOGWIN');
     else if (coriCompanyFilter)       p.set('companyCode',  coriCompanyFilter);
     else                              p.set('companyGroup', 'CORI');
     return p;
@@ -1592,7 +1592,7 @@ export default function HomePage() {
                     <div className="mb-4">
                       <div className="font-bold text-sm text-gray-900">Run Berhasil</div>
                       <div className="text-[11px] text-gray-400 mt-0.5">
-                        LOGW · Periode {MONTH_NAMES[(logwRunResult.periodMonth ?? 1)-1]} {logwRunResult.periodYear}
+                        LOGWIN · Periode {MONTH_NAMES[(logwRunResult.periodMonth ?? 1)-1]} {logwRunResult.periodYear}
                       </div>
                     </div>
                     <div className="space-y-3">
