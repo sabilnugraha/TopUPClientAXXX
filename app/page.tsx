@@ -82,6 +82,7 @@ function actionColor(action: string) {
     '5YSERV':'bg-emerald-100 text-emerald-700', TopUp:'bg-indigo-100 text-indigo-700',
     '5years':'bg-emerald-100 text-emerald-700', GRANT12:'bg-teal-100 text-teal-700',
     'MONTHLY+1':'bg-cyan-100 text-cyan-700', CI_5YEARS:'bg-emerald-100 text-emerald-700',
+    GRANT12_CAPPED:'bg-amber-100 text-amber-700', MONTHLY1_CAPPED:'bg-amber-100 text-amber-700',
   };
   return m[action] ?? 'bg-gray-100 text-gray-600';
 }
@@ -175,6 +176,7 @@ const CAT_COLOR: Record<string,string> = {
   // CORI
   GRANT12:'bg-teal-100 text-teal-700', 'MONTHLY+1':'bg-cyan-100 text-cyan-700',
   CI_5YEARS:'bg-emerald-100 text-emerald-700', EDGE:'bg-gray-100 text-gray-600',
+  GRANT12_CAPPED:'bg-amber-100 text-amber-700', MONTHLY1_CAPPED:'bg-amber-100 text-amber-700',
 };
 
 interface GenericTestTabProps {
@@ -575,22 +577,28 @@ function CoriPanduanTab() {
           <h2 className="font-bold text-gray-900">Cuti Tahunan</h2>
         </div>
 
+        <PanduanSection title="Tanggal Referensi (berlaku untuk GRANT12, MONTHLY+1, dan CI)">
+          <PanduanRule label="Prioritas:">Contract Start Date SELALU dipakai kalau ada isinya — tidak peduli status karyawan Kontrak (C) atau Tetap (P).</PanduanRule>
+          <PanduanRule label="Fallback:">Effective Permanent Date hanya dipakai kalau Contract Start Date kosong.</PanduanRule>
+          <PanduanRule label="Kedua tanggal kosong:">Karyawan tidak eligible — tidak ada tanggal referensi untuk dihitung.</PanduanRule>
+        </PanduanSection>
+
         <PanduanSection title="A. Grant Anniversary +12 Hari (GRANT12)">
-          <PanduanRule label="Kapan:">Diberikan satu kali pada bulan ulang tahun kerja pertama karyawan.</PanduanRule>
-          <PanduanRule label="Karyawan Kontrak (C):">Dihitung dari Contract Start Date.</PanduanRule>
-          <PanduanRule label="Karyawan Tetap (P):">Dihitung dari Effective Permanent Date.</PanduanRule>
+          <PanduanRule label="Kapan:">Diberikan satu kali pada bulan ulang tahun kerja pertama karyawan, dihitung dari tanggal referensi.</PanduanRule>
           <PanduanRule label="Jumlah:">+12 hari AL sekaligus.</PanduanRule>
         </PanduanSection>
 
         <PanduanSection title="B. Penambahan Bulanan +1 Hari (MONTHLY+1)">
-          <PanduanRule label="Kapan:">Setiap bulan, setelah karyawan melewati 1 tahun masa kerja.</PanduanRule>
-          <PanduanRule label="Karyawan Kontrak (C):">Berlaku setelah 1 tahun dari Contract Start Date.</PanduanRule>
-          <PanduanRule label="Karyawan Tetap (P):">Berlaku setelah 1 tahun dari Effective Permanent Date.</PanduanRule>
+          <PanduanRule label="Kapan:">Setiap bulan, setelah karyawan melewati 1 tahun masa kerja dari tanggal referensi.</PanduanRule>
           <PanduanRule label="Jumlah:">+1 hari AL per bulan.</PanduanRule>
         </PanduanSection>
 
         <PanduanNote>
           <strong>GRANT12 vs MONTHLY+1:</strong> Pada bulan anniversary pertama, karyawan mendapat GRANT12 (+12 hari), bukan MONTHLY+1. Di bulan-bulan biasa setelahnya, karyawan mendapat MONTHLY+1 (+1 hari). Keduanya tidak diberikan bersamaan dalam satu bulan.
+        </PanduanNote>
+
+        <PanduanNote variant="red">
+          <strong>Saldo sudah mentok 20 hari:</strong> GRANT12/MONTHLY+1 tidak menambah saldo, tapi proses tetap dicatat di riwayat top-up (saldo sebelum dan sesudah sama-sama 20 hari) supaya tetap tercatat untuk audit — tidak di-skip diam-diam.
         </PanduanNote>
       </Card>
 
@@ -603,7 +611,7 @@ function CoriPanduanTab() {
 
         <PanduanSection title="Syarat Utama">
           <PanduanRule label="Berlaku untuk semua status:">Karyawan Kontrak (C) maupun Karyawan Tetap (P) sama-sama mendapat Service Award.</PanduanRule>
-          <PanduanRule label="Tanggal referensi:">Karyawan Kontrak (C) menggunakan Contract Start Date; Karyawan Tetap (P) menggunakan Effective Permanent Date.</PanduanRule>
+          <PanduanRule label="Tanggal referensi:">Contract Start Date selalu diprioritaskan kalau ada; Effective Permanent Date hanya dipakai kalau Contract Start Date kosong. Berlaku sama untuk C maupun P.</PanduanRule>
           <PanduanRule label="Kelipatan 5 tahun:">Award diberikan ketika masa kerja dari tanggal referensi tepat mencapai 5, 10, 15, 20, 25 tahun, dst.</PanduanRule>
           <PanduanRule label="Bulan anniversary:">Award hanya muncul pada bulan yang sama dengan bulan tanggal referensi — bukan sembarang bulan.</PanduanRule>
         </PanduanSection>
@@ -645,8 +653,8 @@ function CoriPanduanTab() {
         <h2 className="font-bold text-gray-900">Syarat Karyawan yang Mendapat Top-Up Otomatis</h2>
         <PanduanRule label="Status Aktif:">Hanya karyawan dengan status Aktif yang diproses.</PanduanRule>
         <PanduanRule label="Masa kerja &gt; 1 tahun:">GRANT12 dan MONTHLY+1 baru berlaku setelah karyawan genap 1 tahun.</PanduanRule>
-        <PanduanRule label="Saldo AL belum maks:">Jika saldo AL sudah 20 hari, tidak ada penambahan.</PanduanRule>
-        <PanduanRule label="Service Award CI:">Berlaku untuk C dan P. Masa kerja harus tepat kelipatan 5 tahun dari tanggal referensi, pada bulan anniversary tersebut.</PanduanRule>
+        <PanduanRule label="Saldo AL belum maks:">Jika saldo AL sudah 20 hari, GRANT12/MONTHLY+1 tidak menambah saldo — tapi tetap dicatat di riwayat top-up (before=after=20) untuk audit, tidak di-skip diam-diam.</PanduanRule>
+        <PanduanRule label="Service Award CI:">Berlaku untuk C dan P. Masa kerja harus tepat kelipatan 5 tahun dari tanggal referensi (ContractStartDate diprioritaskan, EPD hanya fallback), pada bulan anniversary tersebut.</PanduanRule>
         <PanduanNote>
           <strong>Keamanan double top-up:</strong> Sistem memastikan setiap karyawan hanya menerima satu kali penambahan per periode, meskipun proses dijalankan lebih dari sekali dalam bulan yang sama.
         </PanduanNote>
@@ -821,7 +829,7 @@ export default function HomePage() {
   const [runDate,       setRunDate]       = useState('');
   const [running,       setRunning]       = useState(false);
   const [runResult,     setRunResult]     = useState<{ runId:string; summary:Record<string,DbValue> }|null>(null);
-  const [coriRunResult, setCoriRunResult] = useState<{ rows:Record<string,unknown>[]; summary:{GRANT12:number;MONTHLY1:number;CI5YEARS:number;Total:number} }|null>(null);
+  const [coriRunResult, setCoriRunResult] = useState<{ rows:Record<string,unknown>[]; summary:{GRANT12:number;MONTHLY1:number;CI5YEARS:number;Capped:number;Total:number} }|null>(null);
   const [runError,      setRunError]      = useState('');
 
   const handleRun = useCallback(async () => {
@@ -1150,6 +1158,7 @@ export default function HomePage() {
                         <Stat label="Grant +12 AL" value={coriRunResult.summary.GRANT12}  gradient="bg-gradient-to-br from-teal-500 to-cyan-500" />
                         <Stat label="Monthly +1 AL" value={coriRunResult.summary.MONTHLY1} gradient="bg-gradient-to-br from-cyan-500 to-blue-500" />
                         <Stat label="CI 5-Years"   value={coriRunResult.summary.CI5YEARS} gradient="bg-gradient-to-br from-violet-500 to-purple-600" />
+                        <Stat label="Mentok 20 Hari (Log)" value={coriRunResult.summary.Capped} gradient="bg-gradient-to-br from-amber-500 to-orange-500" />
                       </div>
                       {coriRunResult.rows.length > 0 && (
                         <div className="overflow-x-auto rounded-xl border border-gray-100 mt-2">

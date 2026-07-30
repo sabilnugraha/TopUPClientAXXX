@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
       GRANT12:  rows.filter((r) => r.Action === 'GRANT12').length,
       MONTHLY1: rows.filter((r) => r.Action === 'MONTHLY+1').length,
       CI5YEARS: rows.filter((r) => r.Action === 'CI_5YEARS').length,
+      Capped:   rows.filter((r) => r.Action === 'GRANT12_CAPPED' || r.Action === 'MONTHLY1_CAPPED').length,
       Total:    rows.length,
     };
 

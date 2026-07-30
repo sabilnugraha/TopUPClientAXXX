@@ -6,11 +6,18 @@ export const maxDuration = 60; // Vercel Pro max
 
 // ── DB ActionType mapping ─────────────────────────────────────────────────────
 // The function stores ActionType differently from the Action column it returns:
-//   GRANT12   → ActionType 'TopUp'  in HistoryTopUpLeaves
-//   MONTHLY+1 → ActionType 'TopUp'  in HistoryTopUpLeaves
-//   CI_5YEARS → ActionType '5years' in HistoryTopUpLeaves
+//   GRANT12          → ActionType 'TopUp'  in HistoryTopUpLeaves
+//   MONTHLY+1        → ActionType 'TopUp'  in HistoryTopUpLeaves
+//   GRANT12_CAPPED   → ActionType 'TopUp'  in HistoryTopUpLeaves (saldo AL sudah 20, no-op log)
+//   MONTHLY1_CAPPED  → ActionType 'TopUp'  in HistoryTopUpLeaves (saldo AL sudah 20, no-op log)
+//   CI_5YEARS        → ActionType '5years' in HistoryTopUpLeaves
 function dbActionType(scenarioAction: string): string {
-  if (scenarioAction === 'GRANT12' || scenarioAction === 'MONTHLY+1') return 'TopUp';
+  if (
+    scenarioAction === 'GRANT12' ||
+    scenarioAction === 'MONTHLY+1' ||
+    scenarioAction === 'GRANT12_CAPPED' ||
+    scenarioAction === 'MONTHLY1_CAPPED'
+  ) return 'TopUp';
   if (scenarioAction === 'CI_5YEARS') return '5years';
   return scenarioAction;
 }
@@ -95,8 +102,9 @@ async function runScenario(
           `INSERT INTO "HistoryTopUpLeaves"(
              "CompanyCode","EmployeeNo","LeaveType","PeriodMonth","PeriodYear",
              "LBPraTopUp","LBBPraTopUp","LBAfterTopUp","LBBAfterTopUp",
-             "ActionDate","ActionType","ChangedBy","ChangedNo"
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,'CoriTestRunner',0)`,
+             "ActionDate","ActionType","ActionBy"
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,'CoriTestRunner')
+           ON CONFLICT ("CompanyCode","EmployeeNo","PeriodYear","PeriodMonth","LeaveType","ActionType") DO NOTHING`,
           [
             companyCode, s.employeeNo, h.leaveType, hMonth, hYear,
             h.lbBefore, h.lbbBefore, h.lbAfter, h.lbbAfter, h.actionType,
@@ -297,8 +305,9 @@ export async function POST(req: NextRequest) {
               `INSERT INTO "HistoryTopUpLeaves"(
                  "CompanyCode","EmployeeNo","LeaveType","PeriodMonth","PeriodYear",
                  "LBPraTopUp","LBBPraTopUp","LBAfterTopUp","LBBAfterTopUp",
-                 "ActionDate","ActionType"
-               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10)`,
+                 "ActionDate","ActionType","ActionBy"
+               ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),$10,'CoriTestRunner')
+               ON CONFLICT ("CompanyCode","EmployeeNo","PeriodYear","PeriodMonth","LeaveType","ActionType") DO NOTHING`,
               [companyCode, s.employeeNo, h.leaveType, hMonth, hYear,
                h.lbBefore, h.lbbBefore, h.lbAfter, h.lbbAfter, dbActionType(h.actionType)]
             );

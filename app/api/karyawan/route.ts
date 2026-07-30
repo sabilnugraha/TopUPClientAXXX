@@ -70,12 +70,35 @@ export async function POST(req: NextRequest) {
 
     const isCori = CORI_COMPANIES.includes(CompanyCode);
 
+    // NOT NULL columns pada PeMaster yang tidak diisi lewat form ini diisi nilai
+    // placeholder ('-' / false / 0 / NOW()) — tabel PeMaster adalah tabel HR penuh,
+    // tapi tool ini cuma butuh subset kolomnya untuk keperluan topup cuti.
     if (isCori) {
       await query(
         `INSERT INTO "PeMaster"(
            "CompanyCode","EmployeeNo","FullName","JoinDate","Gender","RecordStatus",
-           "EmploymentStatus","ContractStartDate","EffectivePermanentDate"
-         ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+           "EmploymentStatus","ContractStartDate","EffectivePermanentDate",
+           "BirthPlace","BirthDate","MaritalStatus",
+           "FlagIsExpat","FlagMutationNPWPFrom","FlagMutationNPWPTo","FlagMutationToSameGroup","FlagMutationToOtherDirectory",
+           "FlagIsDirect","FlagIsTemporary","FlagIsCommissioner",
+           "AbsenteeismType","StartAtDay","FlagNotAbsent",
+           "FlagAstekDeathNonAccident","FlagAstekWorkAccident","FlagAstekWorkAccident2","FlagAstekWorkAccident3",
+           "FlagAstekPensionEmployee","FlagAstekPensionEmployer","FlagAstekHealthInsurance",
+           "FlagTaxByGovernment","FlagPensionInsurance","FlagBPJSKesehatan","FlagBPJSTenagaKerja",
+           "FlagExcludePayroll","FlagNotFinger",
+           "ChangedNo","CreatedDate","CreatedBy","ChangedDate","ChangedBy"
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,$7,$8,$9,
+           '-', COALESCE($4::timestamp, NOW()), '-',
+           false,false,false,false,false,
+           false,false,false,
+           '-',1,false,
+           false,false,false,false,
+           false,false,false,
+           false,false,false,false,
+           false,false,
+           0,NOW(),'System',NOW(),'System'
+         )`,
         [
           CompanyCode, EmployeeNo, FullName, JoinDate, Gender, RecordStatus ?? 'A',
           EmploymentStatus ?? 'C',
@@ -85,8 +108,29 @@ export async function POST(req: NextRequest) {
       );
     } else {
       await query(
-        `INSERT INTO "PeMaster"("CompanyCode","EmployeeNo","FullName","JoinDate","Gender","RecordStatus")
-         VALUES ($1,$2,$3,$4,$5,$6)`,
+        `INSERT INTO "PeMaster"(
+           "CompanyCode","EmployeeNo","FullName","JoinDate","Gender","RecordStatus",
+           "BirthPlace","BirthDate","MaritalStatus",
+           "FlagIsExpat","FlagMutationNPWPFrom","FlagMutationNPWPTo","FlagMutationToSameGroup","FlagMutationToOtherDirectory",
+           "FlagIsDirect","FlagIsTemporary","FlagIsCommissioner",
+           "AbsenteeismType","StartAtDay","FlagNotAbsent",
+           "FlagAstekDeathNonAccident","FlagAstekWorkAccident","FlagAstekWorkAccident2","FlagAstekWorkAccident3",
+           "FlagAstekPensionEmployee","FlagAstekPensionEmployer","FlagAstekHealthInsurance",
+           "FlagTaxByGovernment","FlagPensionInsurance","FlagBPJSKesehatan","FlagBPJSTenagaKerja",
+           "FlagExcludePayroll","FlagNotFinger",
+           "ChangedNo","CreatedDate","CreatedBy","ChangedDate","ChangedBy"
+         ) VALUES (
+           $1,$2,$3,$4,$5,$6,
+           '-', COALESCE($4::timestamp, NOW()), '-',
+           false,false,false,false,false,
+           false,false,false,
+           '-',1,false,
+           false,false,false,false,
+           false,false,false,
+           false,false,false,false,
+           false,false,
+           0,NOW(),'System',NOW(),'System'
+         )`,
         [CompanyCode, EmployeeNo, FullName, JoinDate, Gender, RecordStatus ?? 'A']
       );
     }
@@ -94,8 +138,11 @@ export async function POST(req: NextRequest) {
     const leaveCodes = isCori ? CORI_LEAVE_INIT : APLL_LEAVE_INIT;
     for (const code of leaveCodes) {
       await query(
-        `INSERT INTO "PeMasterLeave"("CompanyCode","EmployeeNo","LeaveCode","LeaveBalance","LeaveBalanceBefore","ChangedBy","ChangedNo")
-         VALUES ($1,$2,$3,0,0,'System',0)
+        `INSERT INTO "PeMasterLeave"(
+           "CompanyCode","EmployeeNo","LeaveCode","LeaveBalance","LeaveBalanceBefore",
+           "ChangedBy","ChangedNo","CreatedDate","CreatedBy","ChangedDate"
+         )
+         VALUES ($1,$2,$3,0,0,'System',0,NOW(),'System',NOW())
          ON CONFLICT ("CompanyCode","EmployeeNo","LeaveCode") DO NOTHING`,
         [CompanyCode, EmployeeNo, code]
       );

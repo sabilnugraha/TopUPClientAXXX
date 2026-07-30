@@ -3,11 +3,19 @@
 // fn_topup_AL_Corinthian_daily() uses NOW() internally — all date anchors are
 // computed relative to the server's current date at request time.
 //
+// Revisi Juli 2026 — tanggal referensi = COALESCE(ContractStartDate, EffectivePermanentDate).
+// ContractStartDate SELALU diprioritaskan kalau tidak null, EffectivePermanentDate hanya
+// dipakai kalau ContractStartDate null. Ini berlaku untuk C maupun P — EmploymentStatus
+// TIDAK LAGI menentukan field mana yang dibaca.
+//
 // Rules tested:
 //   GRANT12   — AL +12 on 1-year anniversary of COALESCE(ContractStartDate, EffectivePermanentDate)
-//   MONTHLY+1 — AL +1 every month for Contract (EmploymentStatus='C') employees
-//   CI_5YEARS — CI service award when JoinDate years_service is multiple of 5,
-//               guarded by NOT EXISTS in HistoryTopUpLeaves for last 5 years
+//   MONTHLY+1 — AL +1 every month once COALESCE(ContractStartDate, EffectivePermanentDate) is
+//               1+ year old (applies to both C and P)
+//   CI_5YEARS — CI service award when years_service from COALESCE(ContractStartDate, EffectivePermanentDate)
+//               is a multiple of 5, guarded by NOT EXISTS in HistoryTopUpLeaves for last 5 years
+//   CAPPED    — GRANT12/MONTHLY+1 tidak menambah saldo saat AL sudah tepat 20 hari, tapi tetap
+//               dicatat di HistoryTopUpLeaves (LBPraTopUp = LBAfterTopUp = 20) untuk audit.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const CORI_LEAVE_CODES = ['AL', 'CI'] as const;
@@ -51,13 +59,20 @@ export const CORI_TEST_EMPLOYEES: CoriTestEmployee[] = [
     employeeNo: 'TCORI-02', companyCode: 'CORI', fullName: 'Test Cori Sari (NoGrant-EPDOnly)',
     gender: 'F', recordStatus: 'A', employmentStatus: 'P',
     contractStartDateOffset: null, effectivePermanentDateOffset: -1, joinDateOffset: -1,
-    // CSD=null → function skip GRANT12 (only uses CSD, EPD not fallback for GRANT12)
+    // CSD=null → fallback ke EPD (1yr ago, anniversary bulan ini) → GRANT12 tetap diberikan
   },
   {
     employeeNo: 'TCORI-03', companyCode: 'CORI', fullName: 'Test Cori Rudi (Grant12-BothDates)',
     gender: 'M', recordStatus: 'A', employmentStatus: 'C',
     contractStartDateOffset: -1, effectivePermanentDateOffset: -2, joinDateOffset: -2,
-    // Contract, CSD=1yr ago, EPD=2yr ago → GRANT12 via CSD (EPD present but irrelevant)
+    // CSD=1yr ago, EPD=2yr ago → CSD selalu diprioritaskan → GRANT12 via CSD (EPD diabaikan)
+  },
+  {
+    employeeNo: 'TCORI-15', companyCode: 'CORI', fullName: 'Test Cori Wawan (Grant12-PermanentButCSDWins)',
+    gender: 'M', recordStatus: 'A', employmentStatus: 'P',
+    contractStartDateOffset: -1, effectivePermanentDateOffset: -3, joinDateOffset: -3,
+    // Status Tetap (P), tapi CSD=1yr ago (anniversary bulan ini) & EPD=3yr ago (bukan anniversary).
+    // Aturan lama: pakai EPD → belum eligible. Aturan baru: CSD diprioritaskan → GRANT12 diberikan.
   },
   {
     employeeNo: 'TCORI-04', companyCode: 'CORI', fullName: 'Test Cori Rina (Grant12-WrongMonth)',
@@ -97,36 +112,44 @@ export const CORI_TEST_EMPLOYEES: CoriTestEmployee[] = [
     // Permanent, EPD=null, CSD=null → not eligible for MONTHLY+1 (needs EPD or CSD >= 1yr)
   },
   // ── CI 5YEARS test employees ─────────────────────────────────────────────────
-  // CI requires: EmploymentStatus='P', EffectivePermanentDate IS NOT NULL,
-  // MONTH(EPD) = current month, age(today, EPD) >= 5 AND multiple of 5
+  // Tanggal referensi CI = COALESCE(ContractStartDate, EffectivePermanentDate).
+  // CSD sengaja diset null di bawah supaya benar-benar menguji jalur fallback EPD.
+  // MONTH(ref) = current month, age(today, ref) >= 5 AND multiple of 5
   {
     employeeNo: 'TCORI-10', companyCode: 'CORI', fullName: 'Test Cori Anton (CI-5yr)',
     gender: 'M', recordStatus: 'A', employmentStatus: 'P',
-    contractStartDateOffset: -6, effectivePermanentDateOffset: -5, joinDateOffset: -6,
-    // Permanent, EPD=5yr ago this month → CI_5YEARS eligible
+    contractStartDateOffset: null, effectivePermanentDateOffset: -5, joinDateOffset: -6,
+    // CSD=null → fallback EPD=5yr ago this month → CI_5YEARS eligible
   },
   {
     employeeNo: 'TCORI-11', companyCode: 'CORI', fullName: 'Test Cori Lia (CI-10yr)',
     gender: 'F', recordStatus: 'A', employmentStatus: 'P',
-    contractStartDateOffset: -11, effectivePermanentDateOffset: -10, joinDateOffset: -11,
-    // Permanent, EPD=10yr ago this month → CI_5YEARS eligible
+    contractStartDateOffset: null, effectivePermanentDateOffset: -10, joinDateOffset: -11,
+    // CSD=null → fallback EPD=10yr ago this month → CI_5YEARS eligible
   },
   {
     employeeNo: 'TCORI-12', companyCode: 'CORI', fullName: 'Test Cori Dani (CI-NotEligible)',
     gender: 'M', recordStatus: 'A', employmentStatus: 'P',
-    contractStartDateOffset: -4, effectivePermanentDateOffset: -3, joinDateOffset: -4,
-    // Permanent, EPD=3yr ago → not multiple of 5 → skip
+    contractStartDateOffset: null, effectivePermanentDateOffset: -3, joinDateOffset: -4,
+    // CSD=null → fallback EPD=3yr ago → not multiple of 5 → skip
   },
   {
     employeeNo: 'TCORI-13', companyCode: 'CORI', fullName: 'Test Cori Wati (CI-15yr)',
     gender: 'F', recordStatus: 'A', employmentStatus: 'P',
-    contractStartDateOffset: -16, effectivePermanentDateOffset: -15, joinDateOffset: -16,
-    // Permanent, EPD=15yr ago this month → CI_5YEARS eligible
+    contractStartDateOffset: null, effectivePermanentDateOffset: -15, joinDateOffset: -16,
+    // CSD=null → fallback EPD=15yr ago this month → CI_5YEARS eligible
+  },
+  {
+    employeeNo: 'TCORI-14', companyCode: 'CORI', fullName: 'Test Cori Bagas (CI-CSDPriorityOverEPD)',
+    gender: 'M', recordStatus: 'A', employmentStatus: 'P',
+    contractStartDateOffset: -5, effectivePermanentDateOffset: -3, joinDateOffset: -5,
+    // Status Tetap (P), CSD=5yr ago this month (multiple of 5) & EPD=3yr ago (bukan kelipatan 5).
+    // Aturan lama: pakai EPD → belum eligible. Aturan baru: CSD diprioritaskan → CI_5YEARS diberikan.
   },
 ];
 
 // ── Scenario Types ─────────────────────────────────────────────────────────────
-export type CoriActionType = 'GRANT12' | 'MONTHLY+1' | 'CI_5YEARS';
+export type CoriActionType = 'GRANT12' | 'MONTHLY+1' | 'CI_5YEARS' | 'GRANT12_CAPPED' | 'MONTHLY1_CAPPED';
 export type CoriCategory   = 'GRANT12' | 'MONTHLY+1' | 'CI_5YEARS' | 'EDGE';
 
 export interface CoriScenarioSetup {
@@ -201,10 +224,30 @@ export const CORI_SCENARIOS: CoriScenario[] = [
     id:          'cori_g12_coalesce_priority',
     category:    'GRANT12',
     emoji:       '⚖️',
-    name:        'Dapat 12 Hari Cuti — Kontrak Pakai CSD, Permanen Pakai EPD (Masing-masing Acuannya)',
-    description: 'Karyawan kontrak dengan kedua tanggal (CSD dan EPD) tetap menggunakan CSD sebagai acuan. Karyawan permanen menggunakan EPD.',
+    name:        'Dapat 12 Hari Cuti — Kedua Tanggal Ada, ContractStartDate yang Dipakai',
+    description: 'Karyawan yang punya kedua tanggal (CSD dan EPD) tetap menggunakan ContractStartDate sebagai acuan — EffectivePermanentDate diabaikan selama CSD masih terisi.',
     setups: [{ employeeNo: 'TCORI-03', leaveCode: 'AL', lb: 5, lbb: 0 }],
     expected: { employeeNo: 'TCORI-03', leaveType: 'AL', actionType: 'GRANT12', lbDelta: 12 },
+  },
+
+  {
+    id:          'cori_g12_csd_priority_over_permanent_status',
+    category:    'GRANT12',
+    emoji:       '⚡',
+    name:        'Dapat 12 Hari Cuti — Karyawan Tetap Tetap Pakai Contract Start Date (Bukan EPD)',
+    description: 'Revisi baru: ContractStartDate selalu diprioritaskan kapan pun tersedia, sekalipun karyawan sudah berstatus Tetap (P) dan punya Effective Permanent Date. Sebelumnya karyawan Tetap selalu memakai EPD — sekarang tidak lagi.',
+    setups: [{ employeeNo: 'TCORI-15', leaveCode: 'AL', lb: 0, lbb: 0 }],
+    expected: { employeeNo: 'TCORI-15', leaveType: 'AL', actionType: 'GRANT12', lbDelta: 12 },
+  },
+
+  {
+    id:          'cori_g12_capped_at_max',
+    category:    'GRANT12',
+    emoji:       '🧢',
+    name:        '12 Hari Cuti Tidak Ditambahkan — Saldo AL Sudah Mentok 20 Hari',
+    description: 'Karyawan yang eligible GRANT12 tapi saldo AL-nya sudah tepat 20 hari tidak mendapat tambahan saldo. Proses tetap tercatat di riwayat top-up (saldo sebelum dan sesudah sama-sama 20) untuk keperluan audit.',
+    setups: [{ employeeNo: 'TCORI-01', leaveCode: 'AL', lb: 20, lbb: 0 }],
+    expected: { employeeNo: 'TCORI-01', leaveType: 'AL', actionType: 'GRANT12_CAPPED', lbAfter: 20, lbDelta: 0 },
   },
 
   {
@@ -316,6 +359,16 @@ export const CORI_SCENARIOS: CoriScenario[] = [
     expected: { employeeNo: 'TCORI-08', leaveType: 'AL', actionType: 'MONTHLY+1', lbDelta: 1 },
   },
 
+  {
+    id:          'cori_monthly_capped_at_max',
+    category:    'MONTHLY+1',
+    emoji:       '🧢',
+    name:        'Cuti Bulanan Tidak Ditambahkan — Saldo AL Sudah Mentok 20 Hari',
+    description: 'Karyawan yang eligible MONTHLY+1 tapi saldo AL-nya sudah tepat 20 hari tidak mendapat tambahan saldo. Proses tetap tercatat di riwayat top-up (saldo sebelum dan sesudah sama-sama 20) untuk keperluan audit.',
+    setups: [{ employeeNo: 'TCORI-07', leaveCode: 'AL', lb: 20, lbb: 0 }],
+    expected: { employeeNo: 'TCORI-07', leaveType: 'AL', actionType: 'MONTHLY1_CAPPED', lbAfter: 20, lbDelta: 0 },
+  },
+
   // ══════════════════════════════════════════════════════════════════════════
   // CI_5YEARS — CI service award saat service years = kelipatan 5
   // Guard: NOT EXISTS history CI_5YEARS dalam 5 tahun terakhir
@@ -403,5 +456,15 @@ export const CORI_SCENARIOS: CoriScenario[] = [
     description: 'Karyawan nonaktif tidak mendapat penghargaan masa kerja, meskipun masa kerjanya sudah mencapai kelipatan 5 tahun.',
     setups: [{ employeeNo: 'TCORI-06', leaveCode: 'CI', lb: 0, lbb: 0 }],
     expected: { employeeNo: 'TCORI-06', leaveType: 'CI', actionType: 'CI_5YEARS', shouldNotExist: true },
+  },
+
+  {
+    id:          'cori_ci_csd_priority_over_epd',
+    category:    'CI_5YEARS',
+    emoji:       '⚡',
+    name:        'Penghargaan Masa Kerja — Tanggal Referensi Ikut Prioritas Contract Start Date',
+    description: 'Karyawan Tetap (P) dengan ContractStartDate 5 tahun lalu dan EffectivePermanentDate 3 tahun lalu tetap mendapat Service Award, karena ContractStartDate yang jadi acuan (bukan EffectivePermanentDate).',
+    setups: [{ employeeNo: 'TCORI-14', leaveCode: 'CI', lb: 0, lbb: 0 }],
+    expected: { employeeNo: 'TCORI-14', leaveType: 'CI', actionType: 'CI_5YEARS', lbDelta: 22 },
   },
 ];
