@@ -204,6 +204,79 @@ const CAT_COLOR: Record<string,string> = {
   'CLEAR APR':'bg-orange-100 text-orange-700',IDEMPOTENT:'bg-gray-100 text-gray-600',
 };
 
+/** Objek/array jangan ditampilkan sebagai "[object Object]" */
+function formatCell(v: unknown): string {
+  if (v === null || v === undefined) return '-';
+  if (typeof v === 'object') {
+    const entries = Object.entries(v as Record<string, unknown>);
+    if (!entries.length) return '(kosong)';
+    return entries.map(([k, val]) => `${k}: ${val}`).join('  ·  ');
+  }
+  return String(v);
+}
+
+/**
+ * Perbandingan per bulan (khusus LOGWIN) — hasil aktual vs harapan
+ * ditampilkan sebagai tabel bulan supaya selisihnya langsung kelihatan.
+ */
+function MonthlyCompare({ fnRow }: { fnRow: Record<string, unknown> }) {
+  const actual   = fnRow.perBulanAktual  as Record<string, number> | undefined;
+  const expected = fnRow.perBulanHarapan as Record<string, number> | undefined;
+  if (!actual || !expected || typeof actual !== 'object' || typeof expected !== 'object') return null;
+
+  const months = Array.from(
+    new Set([...Object.keys(expected), ...Object.keys(actual)].map(Number))
+  ).sort((a, b) => a - b);
+  if (!months.length) return null;
+
+  return (
+    <div className="mt-3">
+      <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Rincian per Bulan</div>
+      <div className="overflow-x-auto rounded-xl border border-gray-100">
+        <table className="w-full text-xs">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-left text-gray-400 uppercase text-[10px] tracking-wide">Bulan</th>
+              {months.map(mo => (
+                <th key={mo} className="px-2.5 py-2 text-center text-gray-400 uppercase text-[10px] tracking-wide">
+                  {MONTH_NAMES[mo-1] ?? mo}
+                </th>
+              ))}
+              <th className="px-3 py-2 text-center text-gray-400 uppercase text-[10px] tracking-wide">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-t border-gray-50">
+              <td className="px-3 py-2 text-gray-400 font-semibold whitespace-nowrap">Harapan</td>
+              {months.map(mo => (
+                <td key={mo} className="px-2.5 py-2 text-center font-mono text-gray-500">{expected[mo] ?? 0}</td>
+              ))}
+              <td className="px-3 py-2 text-center font-mono font-bold text-gray-600">
+                {months.reduce((a,mo)=>a+(expected[mo]??0),0)}
+              </td>
+            </tr>
+            <tr className="border-t border-gray-50">
+              <td className="px-3 py-2 text-gray-400 font-semibold whitespace-nowrap">Aktual</td>
+              {months.map(mo => {
+                const e = expected[mo] ?? 0, a = actual[mo] ?? 0;
+                const ok = Math.abs(a - e) < 0.01;
+                return (
+                  <td key={mo} className={`px-2.5 py-2 text-center font-mono font-bold ${ok?'text-emerald-600':'text-red-600 bg-red-50'}`}>
+                    {a}
+                  </td>
+                );
+              })}
+              <td className="px-3 py-2 text-center font-mono font-black text-emerald-600">
+                {months.reduce((a,mo)=>a+(actual[mo]??0),0)}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 interface GenericTestTabProps {
   runApi:     string;   // e.g. '/api/test/run' or '/api/test/run-cori'
   setupApi:   string;   // e.g. '/api/test/setup'
@@ -387,9 +460,13 @@ function GenericTestTab({ runApi, setupApi, cleanupApi, setupConfirmLabel, accen
                       <div className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">Function Output Row</div>
                       <div className="bg-teal-50 rounded-xl p-3 font-mono text-xs space-y-1">
                         {Object.entries(result.fnRow).map(([k,v])=>(
-                          <div key={k} className="flex justify-between gap-2"><span className="text-gray-400">{k}</span><span className="font-semibold text-teal-700">{String(v??'-')}</span></div>
+                          <div key={k} className="flex justify-between gap-2 items-start">
+                            <span className="text-gray-400 shrink-0">{k}</span>
+                            <span className="font-semibold text-teal-700 text-right break-all">{formatCell(v)}</span>
+                          </div>
                         ))}
                       </div>
+                      <MonthlyCompare fnRow={result.fnRow} />
                     </div>
                   )}
                   <div className="text-[11px] text-gray-400 font-mono bg-gray-50 rounded-xl px-3 py-2">
@@ -1198,6 +1275,12 @@ export default function HomePage() {
   };
 
   const saveKaryawan = async () => {
+    // LOGWIN: tanpa level, karyawan tidak akan pernah ikut terproses saat top-up
+    // (function join ke PeMasterLevel LevelType '3'). Cegah sejak di form.
+    if (isLogw && !form.LevelCode?.trim()) {
+      setFormErr('Kode Level wajib diisi untuk LOGWIN — tanpa itu karyawan tidak akan ikut diproses saat top-up.');
+      return;
+    }
     setFormSaving(true); setFormErr('');
     try {
       const url    = editMode ? `/api/karyawan/${form.EmployeeNo}` : '/api/karyawan';
@@ -1945,7 +2028,9 @@ export default function HomePage() {
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3">
               <Select label="Company" value={form.CompanyCode} onChange={e=>setForm({...form,CompanyCode:e.target.value})}>
-                {isCori ? (<><option value="CORI">CORI</option><option value="CII">CII</option></>) : (<option value="APLL">APLL</option>)}
+                {isCori ? (<><option value="CORI">CORI</option><option value="CII">CII</option></>)
+                 : isLogw ? (<option value="LOGWIN">LOGWIN</option>)
+                 : (<option value="APLL">APLL</option>)}
               </Select>
               <div>
                 <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">No. Karyawan {editMode&&<span className="text-gray-300 normal-case font-normal">(tidak bisa diubah)</span>}</label>
