@@ -36,6 +36,29 @@ export async function POST() {
         finalCsd = d.toISOString().slice(0, 10);
       }
 
+      // ── Special override: TCORI-16 anniversary jatuh BESOK ────────────────
+      // CSD = (besok - 1 tahun). Bulan/tahun anniversary cocok dengan periode
+      // berjalan, tapi tanggalnya belum lewat → GRANT12 harus ditolak.
+      // Kalau hari ini tanggal terakhir bulan, "besok" jatuh di bulan depan —
+      // syarat bulan pun tidak cocok, jadi tetap ditolak. Aman di segala tanggal.
+      if (emp.employeeNo === 'TCORI-16') {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setFullYear(tomorrow.getFullYear() - 1);
+        finalCsd = tomorrow.toISOString().slice(0, 10);
+      }
+
+      // ── Special override: TCORI-17 anniversary CI jatuh BESOK ─────────────
+      // EPD = (besok - 5 tahun). Kelipatan 5 terpenuhi, bulan cocok, tapi
+      // tanggalnya belum lewat → CI harus ditolak.
+      let finalEpd = epd;
+      if (emp.employeeNo === 'TCORI-17') {
+        const tomorrow = new Date(now);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        tomorrow.setFullYear(tomorrow.getFullYear() - 5);
+        finalEpd = tomorrow.toISOString().slice(0, 10);
+      }
+
       // ── Upsert PeMaster ──────────────────────────────────────────────────
       // NOT NULL columns yang tidak relevan buat test topup diisi placeholder
       // ('-' / false / 0 / NOW()) — hanya dipakai saat INSERT pertama kali,
@@ -77,7 +100,7 @@ export async function POST() {
         [
           emp.companyCode, emp.employeeNo, emp.fullName, joinDate,
           emp.gender, emp.recordStatus, emp.employmentStatus,
-          finalCsd, epd,
+          finalCsd, finalEpd,
         ]
       );
       empCreated++;

@@ -114,7 +114,8 @@ export const CORI_TEST_EMPLOYEES: CoriTestEmployee[] = [
   // ── CI 5YEARS test employees ─────────────────────────────────────────────────
   // Tanggal referensi CI = COALESCE(ContractStartDate, EffectivePermanentDate).
   // CSD sengaja diset null di bawah supaya benar-benar menguji jalur fallback EPD.
-  // MONTH(ref) = current month, age(today, ref) >= 5 AND multiple of 5
+  // Syarat CI: MONTH(ref) = bulan berjalan, (tahun berjalan - tahun ref) kelipatan 5
+  // dan >= 5, serta tanggal anniversary tahun ini sudah lewat.
   {
     employeeNo: 'TCORI-10', companyCode: 'CORI', fullName: 'Test Cori Anton (CI-5yr)',
     gender: 'M', recordStatus: 'A', employmentStatus: 'P',
@@ -145,6 +146,21 @@ export const CORI_TEST_EMPLOYEES: CoriTestEmployee[] = [
     contractStartDateOffset: -5, effectivePermanentDateOffset: -3, joinDateOffset: -5,
     // Status Tetap (P), CSD=5yr ago this month (multiple of 5) & EPD=3yr ago (bukan kelipatan 5).
     // Aturan lama: pakai EPD → belum eligible. Aturan baru: CSD diprioritaskan → CI_5YEARS diberikan.
+  },
+  {
+    employeeNo: 'TCORI-16', companyCode: 'CORI', fullName: 'Test Cori Yoga (Grant12-BelumLewatTanggal)',
+    gender: 'M', recordStatus: 'A', employmentStatus: 'C',
+    contractStartDateOffset: -1, effectivePermanentDateOffset: null, joinDateOffset: -1,
+    // CSD di-override di setup jadi (BESOK - 1 tahun), sehingga anniversary-nya
+    // jatuh BESOK. Bulan & tahunnya cocok dengan periode berjalan, tapi tanggalnya
+    // belum lewat → GRANT12 harus DITOLAK. Menguji revisi "ketat sampai tanggal".
+  },
+  {
+    employeeNo: 'TCORI-17', companyCode: 'CORI', fullName: 'Test Cori Nadia (CI-BelumLewatTanggal)',
+    gender: 'F', recordStatus: 'A', employmentStatus: 'P',
+    contractStartDateOffset: null, effectivePermanentDateOffset: -5, joinDateOffset: -6,
+    // EPD di-override di setup jadi (BESOK - 5 tahun): kelipatan 5 terpenuhi dan
+    // bulannya cocok, tapi tanggal anniversary tahun ini belum lewat → CI DITOLAK.
   },
 ];
 
@@ -238,6 +254,20 @@ export const CORI_SCENARIOS: CoriScenario[] = [
     description: 'Revisi baru: ContractStartDate selalu diprioritaskan kapan pun tersedia, sekalipun karyawan sudah berstatus Tetap (P) dan punya Effective Permanent Date. Sebelumnya karyawan Tetap selalu memakai EPD — sekarang tidak lagi.',
     setups: [{ employeeNo: 'TCORI-15', leaveCode: 'AL', lb: 0, lbb: 0 }],
     expected: { employeeNo: 'TCORI-15', leaveType: 'AL', actionType: 'GRANT12', lbDelta: 12 },
+  },
+
+  {
+    id:          'cori_g12_belum_lewat_tanggal',
+    category:    'GRANT12',
+    emoji:       '⏳',
+    name:        '12 Hari Cuti Belum Diberikan — Tanggal Genapnya Belum Lewat',
+    description:
+      'Karyawan yang anniversary kontraknya jatuh di bulan ini tapi tanggalnya belum tiba ' +
+      'tidak mendapat 12 hari cuti hari ini. Contoh: anniversary 31 Juli, proses dijalankan ' +
+      '30 Juli — haknya baru cair besok. Sebelumnya sistem hanya mencocokkan bulan, sehingga ' +
+      'cuti bisa cair lebih awal sampai 30 hari.',
+    setups: [{ employeeNo: 'TCORI-16', leaveCode: 'AL', lb: 0, lbb: 0 }],
+    expected: { employeeNo: 'TCORI-16', leaveType: 'AL', actionType: 'GRANT12', shouldNotExist: true },
   },
 
   {
@@ -402,6 +432,19 @@ export const CORI_SCENARIOS: CoriScenario[] = [
     description: 'Karyawan yang tepat bulan ini mencapai 15 tahun masa kerja mendapat cuti penghargaan dari perusahaan.',
     setups: [{ employeeNo: 'TCORI-13', leaveCode: 'CI', lb: 0, lbb: 0 }],
     expected: { employeeNo: 'TCORI-13', leaveType: 'CI', actionType: 'CI_5YEARS', lbDelta: 22 },
+  },
+
+  {
+    id:          'cori_ci_belum_lewat_tanggal',
+    category:    'CI_5YEARS',
+    emoji:       '📆',
+    name:        'Penghargaan Masa Kerja Belum Diberikan — Tanggal Genapnya Belum Lewat',
+    description:
+      'Karyawan yang tahun ini genap kelipatan 5 tahun tapi tanggalnya belum tiba belum berhak ' +
+      'menerima penghargaan. Contoh: genap 5 tahun pada 15 Juli, dijalankan 14 Juli — belum dapat. ' +
+      'Haknya cair mulai tanggal 15 sampai akhir Juli, dan tidak bocor ke tahun berikutnya.',
+    setups: [{ employeeNo: 'TCORI-17', leaveCode: 'CI', lb: 0, lbb: 0 }],
+    expected: { employeeNo: 'TCORI-17', leaveType: 'CI', actionType: 'CI_5YEARS', shouldNotExist: true },
   },
 
   {

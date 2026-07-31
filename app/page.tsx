@@ -819,7 +819,8 @@ function CoriPanduanTab() {
         </PanduanSection>
 
         <PanduanSection title="A. Grant Anniversary +12 Hari (GRANT12)">
-          <PanduanRule label="Kapan:">Diberikan satu kali pada bulan ulang tahun kerja pertama karyawan, dihitung dari tanggal referensi.</PanduanRule>
+          <PanduanRule label="Kapan:">Diberikan satu kali saat karyawan genap 1 tahun, dihitung dari tanggal referensi.</PanduanRule>
+          <PanduanRule label="Ketat sampai tanggal:">Haknya baru cair pada atau setelah tanggal genapnya, bukan sekadar masuk bulan yang sama. Karyawan dengan anniversary 31 Juli tidak mendapat apa-apa kalau proses dijalankan 30 Juli — baru cair keesokan harinya.</PanduanRule>
           <PanduanRule label="Jumlah:">+12 hari AL sekaligus.</PanduanRule>
         </PanduanSection>
 
@@ -830,6 +831,10 @@ function CoriPanduanTab() {
 
         <PanduanNote>
           <strong>GRANT12 vs MONTHLY+1:</strong> Pada bulan anniversary pertama, karyawan mendapat GRANT12 (+12 hari), bukan MONTHLY+1. Di bulan-bulan biasa setelahnya, karyawan mendapat MONTHLY+1 (+1 hari). Keduanya tidak diberikan bersamaan dalam satu bulan.
+        </PanduanNote>
+
+        <PanduanNote variant="indigo">
+          <strong>Ketiganya kini konsisten:</strong> GRANT12, MONTHLY+1, dan Service Award CI sama-sama menunggu tanggal genapnya benar-benar lewat. Karena itu proses ini dirancang berjalan <strong>harian</strong> — kalau hanya dijalankan sekali di awal bulan, karyawan yang tanggal genapnya di akhir bulan akan terlewat.
         </PanduanNote>
 
         <PanduanNote variant="red">
@@ -849,6 +854,7 @@ function CoriPanduanTab() {
           <PanduanRule label="Tanggal referensi:">Contract Start Date selalu diprioritaskan kalau ada; Effective Permanent Date hanya dipakai kalau Contract Start Date kosong. Berlaku sama untuk C maupun P.</PanduanRule>
           <PanduanRule label="Kelipatan 5 tahun:">Award diberikan ketika masa kerja dari tanggal referensi tepat mencapai 5, 10, 15, 20, 25 tahun, dst.</PanduanRule>
           <PanduanRule label="Bulan anniversary:">Award hanya muncul pada bulan yang sama dengan bulan tanggal referensi — bukan sembarang bulan.</PanduanRule>
+          <PanduanRule label="Ketat sampai tanggal:">Haknya cair mulai tanggal anniversary sampai akhir bulan itu. Contoh: genap 5 tahun pada 15 Juli 2026 — cair antara 15 sampai 31 Juli 2026. Dijalankan tanggal 14 belum dapat, dan tidak berlanjut ke tahun berikutnya.</PanduanRule>
         </PanduanSection>
 
         <PanduanSection title="Mekanisme">
